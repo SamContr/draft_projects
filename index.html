@@ -882,6 +882,53 @@ function computeDaySchedule(dateStr, opts){
       location:'Home', movable:true, source:'habit', sourceId:habit.id, tags:tags, subtasks:habit.subtasks });
   });
 
+  // 4.5) conflict resolution — if a higher-priority block (event > rule > periodic)
+  // grew or moved and now overlaps a lower-priority movable block (habit), bump the
+  // lower-priority one instead of leaving a silent double-booking. This also drops
+  // any stale manual lock on the block that yields, so it goes back to auto-placement.
+  function priorityOf(b){
+    if (b.source === 'event' || b.source === 'travel') return 0;
+    if (b.source === 'rule') return 1;
+    if (b.source === 'periodic') return 2;
+    if (b.source === 'habit') return 3;
+    return 9;
+  }
+  (function resolveConflicts(){
+    var changed = true, guard = 0;
+    while (changed && guard < 30){
+      changed = false; guard++;
+      for (var i=0;i<blocks.length;i++){
+        var b = blocks[i];
+        if (b.start==null || b.kind==='free' || b.isDone || !b.movable) continue;
+        for (var j=0;j<blocks.length;j++){
+          if (i===j) continue;
+          var other = blocks[j];
+          if (other.start==null || other.kind==='free') continue;
+          if (!overlaps(b.start, b.end, other.start, other.end)) continue;
+          if (priorityOf(other) >= priorityOf(b)) continue; // other doesn't outrank b — don't move b for it
+
+          // b must yield: remove its own anchor, recompute gaps without it, re-place nearby
+          var otherAnchors = anchors.filter(function(a){ return !(a.start===b.start && a.end===b.end); });
+          var gaps2 = computeGaps(otherAnchors, SCAN_START, SCAN_END);
+          var dur = b.end - b.start;
+          var placement2 = placeInGaps({ earliest:SCAN_START, target:b.start, duration:dur, minDuration:20 }, gaps2)
+            || forcePlaceAfterAnchors({ earliest:SCAN_START, duration:dur }, otherAnchors);
+
+          if (b.sourceId) delete ov.manualTimes[b.sourceId];
+          if (placement2){
+            b.start = placement2.start; b.end = placement2.end;
+            if (b.tags.indexOf('moved to fit') === -1) b.tags.push('moved to fit');
+          } else {
+            if (b.tags.indexOf('no room today') === -1) b.tags.push('no room today');
+          }
+          anchors = otherAnchors;
+          anchors.push({ start:b.start, end:b.end });
+          changed = true;
+        }
+      }
+    }
+  })();
+
   // 5) free time gaps (informational only)
   var finalGaps = computeGaps(anchors, Math.max(SCAN_START, prefs.dayStart), Math.min(SCAN_END, prefs.dayEnd));
   finalGaps.forEach(function(g, idx){
@@ -892,6 +939,19 @@ function computeDaySchedule(dateStr, opts){
 
   // warnings: calls booked where they're not allowed
   var warnings = [];
+  // general double-booking check: anything still overlapping after conflict resolution
+  // (this only fires when neither side could be safely auto-moved, e.g. two fixed events)
+  for (var wi=0; wi<blocks.length; wi++){
+    var wb = blocks[wi];
+    if (wb.start==null || wb.kind==='free') continue;
+    for (var wj=wi+1; wj<blocks.length; wj++){
+      var wo = blocks[wj];
+      if (wo.start==null || wo.kind==='free') continue;
+      if (overlaps(wb.start, wb.end, wo.start, wo.end)){
+        warnings.push('"' + wb.title + '" overlaps "' + wo.title + '" — one of these needs to move by hand.');
+      }
+    }
+  }
   var noCallBlocks = blocks.filter(function(b){ return b.canTakeCalls === false && b.start != null; });
   var callEvents = blocks.filter(function(b){ return b.kind === 'meeting' && b.start != null; });
   callEvents.forEach(function(ce){
