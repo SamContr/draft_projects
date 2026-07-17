@@ -1,0 +1,1541 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Route — Weekly Planner</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --bg: #EEF0EC;
+    --surface: #FFFFFF;
+    --surface-2: #F5F6F2;
+    --ink: #24272A;
+    --ink-soft: #5B6165;
+    --ink-faint: #9BA0A0;
+    --line: #3A3F42;
+    --border: #DEE1D9;
+    --border-soft: #E8EAE4;
+
+    --c-climb: #E2A33B;
+    --c-climb-bg: #FBF1DE;
+    --c-leg: #A6425C;
+    --c-leg-bg: #F5E3E7;
+    --c-guitar: #7B5FB0;
+    --c-guitar-bg: #ECE7F6;
+    --c-japanese: #2E8F82;
+    --c-japanese-bg: #E1F0EE;
+    --c-appt: #4A6FA5;
+    --c-appt-bg: #E4EAF3;
+    --c-social: #C1548C;
+    --c-social-bg: #F5E4EE;
+    --c-travel: #8A8F94;
+    --c-travel-bg: #ECEDEA;
+    --c-free: #7C9473;
+    --c-free-bg: #E9EEE5;
+
+    --font-display: 'Space Grotesk', sans-serif;
+    --font-body: 'IBM Plex Sans', sans-serif;
+    --font-mono: 'IBM Plex Mono', monospace;
+
+    --radius: 10px;
+    --radius-sm: 6px;
+    --shadow-card: 0 1px 2px rgba(36,39,42,0.06), 0 1px 1px rgba(36,39,42,0.04);
+    --shadow-pop: 0 8px 24px rgba(36,39,42,0.18);
+  }
+
+  *{ box-sizing: border-box; }
+  html,body{ margin:0; padding:0; }
+  body{
+    background: var(--bg);
+    color: var(--ink);
+    font-family: var(--font-body);
+    font-size: 15px;
+    line-height: 1.45;
+    -webkit-font-smoothing: antialiased;
+    padding-bottom: 60px;
+  }
+  h1,h2,h3{ font-family: var(--font-display); margin:0; letter-spacing: -0.01em; }
+  button{ font-family: var(--font-body); cursor:pointer; }
+  input, select, textarea{ font-family: var(--font-body); }
+  .mono{ font-family: var(--font-mono); }
+
+  a{ color: inherit; }
+
+  /* ---------- Layout shell ---------- */
+  .app{ max-width: 720px; margin: 0 auto; padding: 0 14px; }
+
+  header.top{
+    position: sticky; top:0; z-index: 20;
+    background: var(--bg);
+    padding: 16px 0 10px 0;
+    border-bottom: 1px solid var(--border-soft);
+  }
+  .top-row{ display:flex; align-items:center; justify-content:space-between; gap:10px; }
+  .brand{ display:flex; align-items:baseline; gap:8px; }
+  .brand h1{ font-size: 21px; font-weight:700; }
+  .brand .tagline{ font-size:11px; color:var(--ink-faint); font-family: var(--font-mono); text-transform:uppercase; letter-spacing:.06em; }
+
+  .icon-btn{
+    border:1px solid var(--border); background:var(--surface); color:var(--ink);
+    border-radius: 8px; width:36px; height:36px; display:flex; align-items:center; justify-content:center;
+    font-size:16px; transition: background .15s, transform .1s;
+  }
+  .icon-btn:hover{ background: var(--surface-2); }
+  .icon-btn:active{ transform: scale(0.94); }
+  .icon-btn:focus-visible, button:focus-visible, input:focus-visible, select:focus-visible{
+    outline: 2px solid var(--c-appt); outline-offset: 2px;
+  }
+
+  .week-nav{ display:flex; align-items:center; gap:8px; margin-top:12px; }
+  .week-nav .range{ font-family: var(--font-mono); font-size:12.5px; color:var(--ink-soft); flex:1; text-align:center; }
+  .btn{
+    border:1px solid var(--border); background:var(--surface); color:var(--ink);
+    border-radius: 8px; padding: 8px 12px; font-size:13.5px; font-weight:500;
+    display:inline-flex; align-items:center; gap:6px;
+  }
+  .btn:hover{ background:var(--surface-2); }
+  .btn.primary{ background: var(--ink); color: var(--bg); border-color: var(--ink); }
+  .btn.primary:hover{ opacity:.88; background:var(--ink); }
+  .btn.ghost{ border-color: transparent; background:transparent; }
+  .btn.small{ padding:5px 9px; font-size:12px; border-radius:7px; }
+  .btn.danger{ color:#A6425C; border-color:#E7C6CE; background:#FBF3F5; }
+
+  .action-row{ display:flex; gap:8px; margin-top:12px; flex-wrap:wrap; }
+
+  /* ---------- Week strip (overview) ---------- */
+  .week-strip{ margin-top:16px; display:flex; gap:6px; }
+  .strip-day{ flex:1; min-width:0; }
+  .strip-label{ font-family: var(--font-mono); font-size:10px; color:var(--ink-faint); text-align:center; margin-bottom:4px; }
+  .strip-bar{ height:46px; border-radius:5px; background:var(--surface-2); position:relative; overflow:hidden; border:1px solid var(--border-soft); cursor:pointer; }
+  .strip-seg{ position:absolute; left:0; right:0; }
+  .strip-day.is-today .strip-label{ color: var(--ink); font-weight:600; }
+  .strip-day.is-today .strip-bar{ border-color: var(--ink); }
+
+  /* ---------- Day list ---------- */
+  .day-list{ margin-top: 18px; display:flex; flex-direction:column; gap:10px; }
+
+  .day-card{
+    background: var(--surface); border:1px solid var(--border-soft); border-radius: var(--radius);
+    box-shadow: var(--shadow-card); overflow:hidden;
+  }
+  .day-card.is-today{ border-color: var(--ink); }
+
+  .day-head{
+    display:flex; align-items:center; gap:10px; padding: 12px 14px; cursor:pointer;
+    -webkit-tap-highlight-color: transparent;
+  }
+  .day-head .dow{ font-family: var(--font-display); font-weight:700; font-size:15px; width:74px; flex-shrink:0; }
+  .day-head .dow .date{ display:block; font-family: var(--font-mono); font-weight:400; font-size:11px; color:var(--ink-faint); margin-top:1px;}
+  .day-head .chips{ display:flex; gap:5px; flex-wrap:wrap; flex:1; }
+  .chip{
+    font-size:11px; font-family: var(--font-mono); padding:3px 7px; border-radius:20px;
+    display:inline-flex; align-items:center; gap:4px; white-space:nowrap;
+  }
+  .day-head .caret{ color: var(--ink-faint); transition: transform .18s; font-size:11px; }
+  .day-card.expanded .caret{ transform: rotate(90deg); }
+
+  .day-warning{
+    margin: 0 14px 10px 14px; padding:8px 10px; border-radius:8px; background:#FBF1DE; border:1px solid #EFD9A8;
+    font-size:12.5px; color:#7A5A17; display:flex; gap:7px; align-items:flex-start;
+  }
+
+  .day-body{ display:none; padding: 4px 14px 16px 14px; }
+  .day-card.expanded .day-body{ display:block; }
+
+  .empty-day{ font-size:13px; color:var(--ink-faint); padding: 10px 0 6px 30px; font-style:italic; }
+
+  /* ---------- Route spine (signature element) ---------- */
+  .route{ position:relative; padding-left: 30px; margin-top: 6px; }
+  .route::before{
+    content:""; position:absolute; left:9px; top:6px; bottom:6px; width:2px;
+    background: repeating-linear-gradient(to bottom, var(--line) 0 4px, transparent 4px 8px);
+  }
+  .block{ position:relative; padding: 9px 0; }
+  .block::before{
+    content:""; position:absolute; left:-30px; top:13px; width:11px; height:11px; border-radius:50%;
+    background: var(--dot, var(--ink)); border:2px solid var(--surface); box-shadow:0 0 0 1.5px var(--dot, var(--ink));
+  }
+  .block.is-past{ opacity:.42; }
+  .block .row1{ display:flex; align-items:center; gap:8px; }
+  .block .time{ font-family: var(--font-mono); font-size:12px; color:var(--ink-soft); white-space:nowrap; }
+  .block .title{ font-weight:600; font-size:13.8px; flex:1; }
+  .block .meta{ font-size:11.5px; color:var(--ink-soft); margin-top:2px; display:flex; gap:8px; flex-wrap:wrap; }
+  .block .tag{
+    display:inline-flex; align-items:center; gap:3px; padding:1px 6px; border-radius:20px; font-size:10.5px;
+    background: var(--tagbg, var(--surface-2)); color: var(--ink-soft);
+  }
+  .block.free .title{ color: var(--ink-soft); font-weight:500; font-style:italic; }
+  .block-edit-btn{ background:none; border:none; color:var(--ink-faint); font-size:12px; padding:2px 4px; }
+  .block-edit-btn:hover{ color:var(--ink); }
+  .subtasks{ margin-top:5px; display:flex; gap:10px; flex-wrap:wrap; }
+  .subtask{ font-size:11px; color:var(--ink-soft); display:flex; align-items:center; gap:4px; }
+  .subtask input{ accent-color: var(--ink); }
+
+  /* ---------- Forms / modals ---------- */
+  .overlay{
+    position:fixed; inset:0; background:rgba(36,39,42,0.42); z-index:50;
+    display:flex; align-items:flex-end; justify-content:center;
+  }
+  @media (min-width: 640px){ .overlay{ align-items:center; } }
+  .overlay.hidden{ display:none; }
+  .sheet{
+    background: var(--surface); width:100%; max-width:460px; max-height:88vh; overflow-y:auto;
+    border-radius: 16px 16px 0 0; padding: 18px 18px 24px 18px; box-shadow: var(--shadow-pop);
+  }
+  @media (min-width: 640px){ .sheet{ border-radius:14px; } }
+  .sheet h2{ font-size:17px; margin-bottom:14px; }
+  .field{ margin-bottom:12px; }
+  .field label{ display:block; font-size:11.5px; font-weight:600; color:var(--ink-soft); margin-bottom:4px; text-transform:uppercase; letter-spacing:.03em; }
+  .field input[type=text], .field input[type=number], .field input[type=date], .field input[type=time], .field select, .field textarea{
+    width:100%; padding:9px 10px; border:1px solid var(--border); border-radius:8px; font-size:14px; background: var(--surface);
+    color: var(--ink);
+  }
+  .field-row{ display:flex; gap:10px; }
+  .field-row > .field{ flex:1; }
+  .checkline{ display:flex; align-items:center; gap:8px; font-size:13.5px; margin-bottom:12px; }
+  .checkline input{ accent-color: var(--ink); width:16px; height:16px; }
+  .sheet-actions{ display:flex; gap:8px; margin-top:16px; }
+  .sheet-actions .btn{ flex:1; justify-content:center; }
+  .sheet-close{ position:absolute; top:14px; right:14px; }
+  .sheet-wrap{ position:relative; }
+
+  .rules-section{ margin-bottom: 18px; }
+  .rules-section h3{ font-size:13px; text-transform:uppercase; letter-spacing:.04em; color:var(--ink-soft); margin-bottom:8px; }
+  .rule-card{ border:1px solid var(--border-soft); border-radius:10px; padding:10px 12px; margin-bottom:8px; background:var(--surface-2); }
+  .rule-card-head{ display:flex; align-items:center; justify-content:space-between; gap:8px; margin-bottom:8px; }
+  .rule-card-head .name{ font-weight:600; font-size:13.5px; }
+  .day-toggles{ display:flex; gap:4px; flex-wrap:wrap; }
+  .day-toggle{
+    width:30px; height:26px; border-radius:6px; border:1px solid var(--border); background:var(--surface);
+    font-size:11px; font-family:var(--font-mono); color:var(--ink-soft);
+  }
+  .day-toggle.on{ background: var(--ink); color: var(--bg); border-color:var(--ink); }
+  .note{ font-size:11px; color:var(--ink-faint); margin-top:4px; }
+
+  .toast{
+    position:fixed; bottom:18px; left:50%; transform:translateX(-50%);
+    background: var(--ink); color:var(--bg); padding:9px 16px; border-radius:20px; font-size:13px;
+    box-shadow: var(--shadow-pop); z-index:80; opacity:0; pointer-events:none; transition: opacity .2s, transform .2s;
+  }
+  .toast.show{ opacity:1; transform:translateX(-50%) translateY(-4px); }
+
+  .footer-note{ text-align:center; font-size:11px; color:var(--ink-faint); margin-top:28px; font-family:var(--font-mono); }
+
+  @media (prefers-reduced-motion: reduce){
+    *{ transition: none !important; animation: none !important; }
+  }
+</style>
+</head>
+<body>
+
+<div class="app">
+
+  <header class="top">
+    <div class="top-row">
+      <div class="brand">
+        <h1>🧗 Route</h1>
+        <span class="tagline">your week, mapped</span>
+      </div>
+      <button class="icon-btn" id="btnRules" title="Edit rules" aria-label="Edit rules">⚙️</button>
+      <button class="icon-btn" id="btnConnect" title="Google Sheets connection" aria-label="Google Sheets connection">🔗</button>
+    </div>
+    <div class="week-nav">
+      <button class="icon-btn" id="btnPrevWeek" aria-label="Previous week">‹</button>
+      <div class="range mono" id="weekRange">—</div>
+      <button class="icon-btn" id="btnNextWeek" aria-label="Next week">›</button>
+    </div>
+    <div class="action-row">
+      <button class="btn primary" id="btnAddEvent">+ Add event</button>
+      <button class="btn" id="btnReplan">⚡ Replan today from now</button>
+      <button class="btn ghost" id="btnToday">Today</button>
+      <button class="btn ghost" id="btnSync" title="Check for updates from another device">🔄 Sync</button>
+    </div>
+    <div class="week-strip" id="weekStrip"></div>
+  </header>
+
+  <div class="day-list" id="dayList"></div>
+
+  <div class="footer-note" id="syncStatus">saved automatically · tap any block to move it</div>
+</div>
+
+<!-- Toast -->
+<div class="toast" id="toast"></div>
+
+<!-- Add / Edit event modal -->
+<div class="overlay hidden" id="eventOverlay">
+  <div class="sheet sheet-wrap">
+    <button class="icon-btn sheet-close" id="closeEventSheet" aria-label="Close">✕</button>
+    <h2 id="eventSheetTitle">Add event</h2>
+    <form id="eventForm"></form>
+  </div>
+</div>
+
+<!-- Block edit popover (for recurring/habit instances) -->
+<div class="overlay hidden" id="blockOverlay">
+  <div class="sheet sheet-wrap">
+    <button class="icon-btn sheet-close" id="closeBlockSheet" aria-label="Close">✕</button>
+    <h2 id="blockSheetTitle">Edit block</h2>
+    <form id="blockForm"></form>
+  </div>
+</div>
+
+<!-- Rules editor -->
+<div class="overlay hidden" id="rulesOverlay">
+  <div class="sheet sheet-wrap" style="max-width:520px;">
+    <button class="icon-btn sheet-close" id="closeRulesSheet" aria-label="Close">✕</button>
+    <h2>Your rules</h2>
+    <div id="rulesBody"></div>
+    <div class="sheet-actions">
+      <button class="btn primary" id="saveRules" type="button">Save changes</button>
+    </div>
+  </div>
+</div>
+
+<!-- Connect to Google Sheets -->
+<div class="overlay hidden" id="connectOverlay">
+  <div class="sheet sheet-wrap">
+    <button class="icon-btn sheet-close" id="closeConnectSheet" aria-label="Close">✕</button>
+    <h2>🔗 Connect to Google Sheets</h2>
+    <p class="note" style="margin-bottom:12px; font-size:12.5px; line-height:1.5;">
+      Paste the Web App URL and the token from your Apps Script deployment.
+      Same values on every device you want in sync — the sheet is the shared source of truth.
+    </p>
+    <form id="connectForm">
+      <div class="field"><label>Web App URL</label>
+        <input type="text" id="cfUrl" placeholder="https://script.google.com/macros/s/.../exec" required></div>
+      <div class="field"><label>Token</label>
+        <input type="text" id="cfToken" placeholder="whatever you set TOKEN to in Code.gs" required></div>
+      <p id="connectError" class="note" style="color:#A6425C; display:none; margin-bottom:8px;"></p>
+      <div class="sheet-actions">
+        <button type="button" class="btn ghost" id="cfSkip">Use offline for now</button>
+        <button type="submit" class="btn primary" id="cfSubmit">Test &amp; connect</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<script>
+
+'use strict';
+/* =========================================================
+   SECTION: STORAGE — Google Sheets via Apps Script
+   This is a standalone page (not a Claude artifact), so plain
+   localStorage is fine here — it's only used to remember which
+   Apps Script URL/token this device talks to, not the plan data
+   itself. The actual planner data (rules/events/overrides) lives
+   in your Google Sheet, reached over JSONP (reads) and a no-cors
+   "simple request" POST (writes) so the browser's CORS rules
+   don't block it even though Apps Script doesn't send back
+   CORS headers.
+   ========================================================= */
+var GS_CONFIG_KEY = 'route-gsheets-config';
+var memoryStore = {};
+
+function loadGSConfig(){
+  try{
+    var raw = localStorage.getItem(GS_CONFIG_KEY);
+    return raw ? JSON.parse(raw) : null;
+  }catch(e){ return null; }
+}
+function saveGSConfig(cfg){
+  try{ localStorage.setItem(GS_CONFIG_KEY, JSON.stringify(cfg)); return true; }catch(e){ return false; }
+}
+function clearGSConfig(){
+  try{ localStorage.removeItem(GS_CONFIG_KEY); }catch(e){}
+}
+
+var CONFIG = loadGSConfig();
+var storageAvailable = !!(CONFIG && CONFIG.url && CONFIG.token);
+
+var _jsonpN = 0;
+function jsonpRequest(baseUrl, params, timeoutMs){
+  return new Promise(function(resolve, reject){
+    var cbName = '__gs_cb_' + (_jsonpN++) + '_' + Date.now();
+    var script = document.createElement('script');
+    var done = false;
+    var timer = setTimeout(function(){
+      if (done) return;
+      done = true; cleanup(); reject(new Error('timeout'));
+    }, timeoutMs || 10000);
+    function cleanup(){
+      clearTimeout(timer);
+      try{ delete window[cbName]; }catch(e){ window[cbName] = undefined; }
+      if (script.parentNode) script.parentNode.removeChild(script);
+    }
+    window[cbName] = function(data){
+      if (done) return;
+      done = true; cleanup(); resolve(data);
+    };
+    var qs = Object.keys(params).map(function(k){
+      return encodeURIComponent(k) + '=' + encodeURIComponent(params[k]);
+    }).join('&');
+    script.src = baseUrl + (baseUrl.indexOf('?') === -1 ? '?' : '&') + qs + '&callback=' + cbName;
+    script.onerror = function(){ if (done) return; done = true; cleanup(); reject(new Error('network error')); };
+    document.body.appendChild(script);
+  });
+}
+
+async function gsGet(key){
+  var res = await jsonpRequest(CONFIG.url, { action:'get', key:key, token:CONFIG.token }, 10000);
+  if (!res || res.ok !== true) throw new Error((res && res.error) || 'request failed');
+  return res.value; // raw string or null
+}
+
+async function gsSet(key, valueStr){
+  // no-cors + text/plain keeps this a "simple request" so no CORS preflight
+  // is required — but it also means we can't read the response, so this
+  // is fire-and-forget; the next poll confirms the write landed.
+  await fetch(CONFIG.url, {
+    method: 'POST',
+    mode: 'no-cors',
+    headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+    body: JSON.stringify({ key:key, value:valueStr, token:CONFIG.token })
+  });
+}
+
+async function storeGet(key, fallback){
+  if (!storageAvailable){
+    return Object.prototype.hasOwnProperty.call(memoryStore, key) ? memoryStore[key] : fallback;
+  }
+  try{
+    var raw = await gsGet(key);
+    if (raw == null || raw === '') return fallback;
+    return JSON.parse(raw);
+  }catch(e){
+    return Object.prototype.hasOwnProperty.call(memoryStore, key) ? memoryStore[key] : fallback;
+  }
+}
+
+async function storeSet(key, value){
+  memoryStore[key] = value; // optimistic local cache so the UI never blocks on the network
+  if (!storageAvailable) return false;
+  try{
+    await gsSet(key, JSON.stringify(value));
+    return true;
+  }catch(e){
+    return false;
+  }
+}
+
+/* =========================================================
+   SECTION: DATE UTILS
+   ========================================================= */
+var DOW_SHORT = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
+var MONTH_SHORT = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+
+function pad2(n){ return String(n).padStart(2,'0'); }
+
+function toDateStr(d){
+  return d.getFullYear() + '-' + pad2(d.getMonth()+1) + '-' + pad2(d.getDate());
+}
+
+function fromDateStr(s){
+  var parts = s.split('-').map(Number);
+  return new Date(parts[0], parts[1]-1, parts[2]);
+}
+
+function addDays(d, n){
+  var r = new Date(d);
+  r.setDate(r.getDate()+n);
+  return r;
+}
+
+function startOfWeek(d){
+  var r = new Date(d);
+  r.setHours(0,0,0,0);
+  r.setDate(r.getDate() - r.getDay());
+  return r;
+}
+
+function todayStr(){ return toDateStr(new Date()); }
+
+function nowMinutes(){
+  var n = new Date();
+  return n.getHours()*60 + n.getMinutes();
+}
+
+function minToClock(min){
+  min = ((min % 1440) + 1440) % 1440;
+  var h = Math.floor(min/60), m = min%60;
+  var ampm = h < 12 ? 'AM' : 'PM';
+  var h12 = h % 12; if (h12 === 0) h12 = 12;
+  return h12 + (m ? ':' + pad2(m) : '') + ' ' + ampm;
+}
+
+function minToClock24(min){
+  min = ((min % 1440) + 1440) % 1440;
+  return pad2(Math.floor(min/60)) + ':' + pad2(min%60);
+}
+
+function clockToMin(hhmm){
+  var parts = hhmm.split(':').map(Number);
+  return parts[0]*60 + (parts[1]||0);
+}
+
+function fmtRange(start, end){
+  return minToClock(start) + ' – ' + minToClock(end);
+}
+
+function fmtDuration(min){
+  var h = Math.floor(min/60), m = min%60;
+  if (h && m) return h + 'h ' + m + 'm';
+  if (h) return h + 'h';
+  return m + 'm';
+}
+
+function fmtDayHeader(d){
+  return DOW_SHORT[d.getDay()] + ' · ' + MONTH_SHORT[d.getMonth()] + ' ' + d.getDate();
+}
+
+function clamp(n, min, max){ return Math.max(min, Math.min(max, n)); }
+
+function uid(prefix){ return (prefix||'id') + '_' + Math.random().toString(36).slice(2,9); }
+
+/* =========================================================
+   SECTION: DEFAULT DATA
+   ========================================================= */
+var CATS = {
+  climb:    { dot:'var(--c-climb)',    bg:'var(--c-climb-bg)',    icon:'🧗', label:'Climbing' },
+  leg:      { dot:'var(--c-leg)',      bg:'var(--c-leg-bg)',      icon:'🏋️', label:'Leg day' },
+  guitar:   { dot:'var(--c-guitar)',   bg:'var(--c-guitar-bg)',   icon:'🎸', label:'Guitar' },
+  japanese: { dot:'var(--c-japanese)', bg:'var(--c-japanese-bg)', icon:'📘', label:'Japanese' },
+  appt:     { dot:'var(--c-appt)',     bg:'var(--c-appt-bg)',     icon:'🩺', label:'Appointment' },
+  meeting:  { dot:'var(--c-appt)',     bg:'var(--c-appt-bg)',     icon:'💻', label:'Meeting / call' },
+  social:   { dot:'var(--c-social)',   bg:'var(--c-social-bg)',   icon:'🍽️', label:'Social' },
+  custom:   { dot:'var(--c-social)',   bg:'var(--c-social-bg)',   icon:'📌', label:'Event' },
+  travel:   { dot:'var(--c-travel)',   bg:'var(--c-travel-bg)',   icon:'🚗', label:'Travel' },
+  free:     { dot:'var(--c-free)',     bg:'var(--c-free-bg)',     icon:'—',  label:'Free' }
+};
+
+var FREE_SUGGESTIONS = ['Open — YouTube, going out, or rest', 'Open — good window to go out', 'Open — catch up on YouTube', 'Open — breathing room'];
+
+function defaultRules(){
+  return {
+    recurringActivities: [
+      {
+        id:'climb', name:'Climbing', kind:'climb', days:[1,3,5],
+        location:'Climbing gym', opensAt: clockToMin('07:00'), canTakeCalls:true,
+        durationDefault: 150, targetStart: clockToMin('09:00'), lateStart: clockToMin('12:00'),
+        note:''
+      },
+      {
+        id:'legday', name:'Leg day', kind:'leg', days:[0,2,4],
+        location:'Gym', opensAt: clockToMin('06:00'), canTakeCalls:false,
+        targetStart: clockToMin('12:00'),
+        durationByDay: { 0:120, 2:90, 4:180 },
+        note:''
+      },
+      {
+        id:'physician', name:'Physician', kind:'appt', days:[3],
+        location:'Near the climbing gym', opensAt: clockToMin('08:00'), canTakeCalls:false,
+        targetStart: clockToMin('09:00'), durationDefault: 45,
+        note:'Weekday is a placeholder — set the real one in Rules.'
+      }
+    ],
+    periodicActivities: [
+      {
+        id:'nutrition', name:'Nutritionist', kind:'appt', dayOfWeek:3,
+        location:'Near the climbing gym', opensAt: clockToMin('08:00'), canTakeCalls:false,
+        targetStart: clockToMin('10:00'), durationDefault: 45,
+        intervalWeeks:3, anchorDate: todayStr(),
+        note:'Weekday is a placeholder — set the real one in Rules.'
+      }
+    ],
+    dailyHabits: [
+      { id:'guitar', name:'Guitar practice', kind:'guitar', targetMin:45, atHome:true, subtasks:[] },
+      { id:'japanese', name:'Japanese practice', kind:'japanese', targetMin:65, atHome:true,
+        subtasks:['Anki (15–20m)','Grammar (10–15m)','Immersion (30m+)'] }
+    ],
+    preferences: {
+      preferEatAtHome: true,
+      dayStart: clockToMin('07:00'),
+      dayEnd: clockToMin('23:00'),
+      wantsGoingOut: true
+    }
+  };
+}
+
+/* =========================================================
+   SECTION: STATE
+   ========================================================= */
+var STATE = {
+  rules: null,
+  events: [],       // {id, date, title, start, end, location, kind, travel, movable:false}
+  overrides: {},     // dateStr -> { wakeLate:bool, done:{ruleId:{start,duration}}, manualTimes:{key:{start,duration}}, skipped:[ids], replanAfter:min }
+  weekStart: startOfWeek(new Date()),
+  expandedDates: {}   // dateStr -> bool
+};
+
+async function loadState(){
+  STATE.rules = await storeGet('planner-rules', null);
+  if (!STATE.rules){
+    STATE.rules = defaultRules();
+    await storeSet('planner-rules', STATE.rules);
+  }
+  STATE.events = await storeGet('planner-events', []);
+  STATE.overrides = await storeGet('planner-overrides', {});
+  STATE.expandedDates[todayStr()] = true;
+}
+
+async function saveRulesToStore(){ await storeSet('planner-rules', STATE.rules); }
+async function saveEventsToStore(){ await storeSet('planner-events', STATE.events); }
+async function saveOverridesToStore(){ await storeSet('planner-overrides', STATE.overrides); }
+
+function getOverride(dateStr){
+  if (!STATE.overrides[dateStr]){
+    STATE.overrides[dateStr] = { wakeLate:false, done:{}, manualTimes:{}, skipped:[], replanAfter:null };
+  }
+  var o = STATE.overrides[dateStr];
+  if (!o.done) o.done = {};
+  if (!o.manualTimes) o.manualTimes = {};
+  if (!o.skipped) o.skipped = [];
+  return o;
+}
+
+/* ---- Cross-device sync (polling) ----
+   Apps Script has no live-push mechanism either, so "sync" here
+   means: re-fetch on an interval + whenever the tab/app regains
+   focus, and only touch the screen if something actually changed. */
+var SYNC_INTERVAL_MS = 8000;
+STATE.lastSynced = null;
+STATE.syncing = false;
+
+function anyModalOpen(){
+  return !document.getElementById('eventOverlay').classList.contains('hidden') ||
+         !document.getElementById('blockOverlay').classList.contains('hidden') ||
+         !document.getElementById('rulesOverlay').classList.contains('hidden') ||
+         !document.getElementById('connectOverlay').classList.contains('hidden');
+}
+
+async function pollForChanges(opts){
+  opts = opts || {};
+  if (!storageAvailable) { updateSyncFooter(); return; }
+  if (STATE.syncing) return;
+  if (!opts.force && anyModalOpen()) return; // don't yank the screen while someone's mid-edit
+  STATE.syncing = true;
+  try{
+    var remoteEvents = await storeGet('planner-events', STATE.events);
+    var remoteOverrides = await storeGet('planner-overrides', STATE.overrides);
+    var remoteRules = await storeGet('planner-rules', STATE.rules);
+    var changed =
+      JSON.stringify(remoteEvents) !== JSON.stringify(STATE.events) ||
+      JSON.stringify(remoteOverrides) !== JSON.stringify(STATE.overrides) ||
+      JSON.stringify(remoteRules) !== JSON.stringify(STATE.rules);
+    if (changed){
+      STATE.events = remoteEvents;
+      STATE.overrides = remoteOverrides;
+      STATE.rules = remoteRules;
+      renderAll();
+      showToast('Synced from another device');
+    } else if (opts.force){
+      showToast('Already up to date');
+    }
+    STATE.lastSynced = new Date();
+    STATE.syncError = false;
+    updateSyncFooter();
+  } catch(e){
+    STATE.syncError = true;
+    updateSyncFooter();
+    if (opts.force) showToast('Could not reach your Google Sheet — check the connection');
+  } finally {
+    STATE.syncing = false;
+  }
+}
+
+function updateSyncFooter(){
+  var el = document.getElementById('syncStatus');
+  if (!el) return;
+  if (!storageAvailable){
+    el.innerHTML = 'not connected — <button class="btn small ghost" id="footerConnectBtn" type="button" style="padding:2px 8px;">connect to Google Sheets</button>';
+    var btn = document.getElementById('footerConnectBtn');
+    if (btn) btn.addEventListener('click', openConnectScreen);
+    return;
+  }
+  if (STATE.syncError){ el.textContent = 'sync trouble — will keep retrying · tap 🔄 Sync to try now'; return; }
+  el.textContent = STATE.lastSynced ? ('last synced ' + minToClock24(STATE.lastSynced.getHours()*60+STATE.lastSynced.getMinutes())) : 'connecting…';
+}
+
+/* =========================================================
+   SECTION: SCHEDULE ENGINE
+   ========================================================= */
+var SCAN_START = 300;   // 5:00am — earliest we ever schedule something
+var SCAN_END   = 1440;  // midnight — latest boundary for gap scanning
+
+function overlaps(aStart, aEnd, bStart, bEnd){
+  return aStart < bEnd && bStart < aEnd;
+}
+
+function mergeAnchors(list){
+  var sorted = list.slice().sort(function(a,b){ return a.start-b.start; });
+  var merged = [];
+  for (var i=0;i<sorted.length;i++){
+    var cur = sorted[i];
+    if (merged.length && cur.start <= merged[merged.length-1].end){
+      merged[merged.length-1].end = Math.max(merged[merged.length-1].end, cur.end);
+    } else {
+      merged.push({ start:cur.start, end:cur.end });
+    }
+  }
+  return merged;
+}
+
+function computeGaps(anchors, scanStart, scanEnd){
+  var merged = mergeAnchors(anchors);
+  var gaps = [];
+  var cursor = scanStart;
+  for (var i=0;i<merged.length;i++){
+    var a = merged[i];
+    if (a.start > cursor) gaps.push([cursor, a.start]);
+    cursor = Math.max(cursor, a.end);
+  }
+  if (cursor < scanEnd) gaps.push([cursor, scanEnd]);
+  return gaps;
+}
+
+// Finds the best placement for a candidate {earliest, target, duration, minDuration}
+// inside the given gaps. Returns {start, end, fit:'full'|'shrunk'} or null.
+function placeInGaps(candidate, gaps){
+  var best = null;
+  for (var i=0;i<gaps.length;i++){
+    var g = gaps[i];
+    var s0 = Math.max(g[0], candidate.earliest);
+    var e0 = g[1];
+    if (e0 - s0 < candidate.duration) continue;
+    var start;
+    if (candidate.target <= s0) start = s0;
+    else if (candidate.target + candidate.duration <= e0) start = candidate.target;
+    else start = e0 - candidate.duration;
+    var dist = Math.abs(start - candidate.target);
+    if (!best || dist < best.dist) best = { start:start, end:start+candidate.duration, dist:dist, fit:'full' };
+  }
+  if (best) return best;
+
+  if (candidate.minDuration){
+    var largest = null;
+    for (var j=0;j<gaps.length;j++){
+      var g2 = gaps[j];
+      var s2 = Math.max(g2[0], candidate.earliest);
+      var len = g2[1]-s2;
+      if (len <= 0) continue;
+      if (!largest || len>largest.len) largest = { start:s2, len:len };
+    }
+    if (largest && largest.len >= candidate.minDuration){
+      return { start:largest.start, end:largest.start+Math.min(candidate.duration,largest.len), fit:'shrunk' };
+    }
+  }
+  return null;
+}
+
+// Fallback for must-happen recurring activities that don't fit any gap cleanly:
+// pushes to right after the last conflicting anchor, ignoring the day-end boundary.
+function forcePlaceAfterAnchors(candidate, anchors){
+  var start = candidate.earliest;
+  var sorted = mergeAnchors(anchors);
+  var moved = true, guard = 0;
+  while (moved && guard < 100){
+    moved = false; guard++;
+    for (var i=0;i<sorted.length;i++){
+      var a = sorted[i];
+      if (overlaps(start, start+candidate.duration, a.start, a.end)){
+        start = a.end; moved = true;
+      }
+    }
+  }
+  return { start:start, end:start+candidate.duration, fit:'forced' };
+}
+
+function isPeriodicApplicable(rule, dateStr, dow){
+  if (dow !== rule.dayOfWeek) return false;
+  var a = fromDateStr(rule.anchorDate), b = fromDateStr(dateStr);
+  var diffDays = Math.round((b-a)/86400000);
+  var diffWeeks = Math.floor(diffDays/7);
+  return ((diffWeeks % rule.intervalWeeks)+rule.intervalWeeks) % rule.intervalWeeks === 0;
+}
+
+function computeDaySchedule(dateStr, opts){
+  opts = opts || {};
+  var rules = STATE.rules;
+  var dow = fromDateStr(dateStr).getDay();
+  var ov = getOverride(dateStr);
+  var prefs = rules.preferences;
+  var blocks = [];
+  var anchors = []; // {start,end} used only for gap math
+
+  function addAnchor(b){
+    blocks.push(b);
+    anchors.push({ start:b.start, end:b.end });
+  }
+
+  // 1) one-off events (+ auto travel blocks)
+  STATE.events.filter(function(e){ return e.date === dateStr; }).forEach(function(e){
+    var tags = [];
+    if (e.kind === 'social' && e.location && !/home/i.test(e.location)) tags.push('away from home');
+    addAnchor({
+      key:'evt_'+e.id, kind:e.kind, title:e.title, start:e.start, end:e.start+e.duration,
+      location:e.location, movable:false, source:'event', sourceId:e.id, tags:tags,
+      canTakeCalls: null
+    });
+    if (e.travel && e.travel > 0){
+      addAnchor({
+        key:'trav_'+e.id, kind:'travel', title:'Travel · ' + e.title, start:e.start-e.travel, end:e.start,
+        location:'', movable:false, source:'travel', sourceId:e.id, tags:[]
+      });
+    }
+  });
+
+  // 2) recurring rules (climb / leg / physician-style)
+  rules.recurringActivities.forEach(function(rule){
+    if (ov.skipped.indexOf(rule.id) !== -1) return;
+    if (rule.days.indexOf(dow) === -1) return;
+
+    var duration = rule.durationByDay ? (rule.durationByDay[dow] || rule.durationDefault || 60) : (rule.durationDefault || 60);
+
+    if (ov.done[rule.id]){
+      var d = ov.done[rule.id];
+      addAnchor({ key:'rule_'+rule.id, kind:rule.kind, title:rule.name, start:d.start, end:d.start+d.duration,
+        location:rule.location, movable:true, source:'rule', sourceId:rule.id, tags:['done'],
+        canTakeCalls: rule.canTakeCalls, isDone:true });
+      return;
+    }
+    if (ov.manualTimes[rule.id]){
+      var m = ov.manualTimes[rule.id];
+      addAnchor({ key:'rule_'+rule.id, kind:rule.kind, title:rule.name, start:m.start, end:m.start+m.duration,
+        location:rule.location, movable:true, source:'rule', sourceId:rule.id, tags:['adjusted'],
+        canTakeCalls: rule.canTakeCalls });
+      return;
+    }
+
+    var target = rule.targetStart;
+    if (rule.lateStart && ov.wakeLate) target = rule.lateStart;
+    var earliest = Math.max(rule.opensAt, SCAN_START, opts.replanAfter && dateStr===opts.replanDate ? opts.replanAfter : 0);
+
+    var gaps = computeGaps(anchors, SCAN_START, SCAN_END);
+    var placement = placeInGaps({ earliest:earliest, target:Math.max(target,earliest), duration:duration }, gaps);
+    if (!placement) placement = forcePlaceAfterAnchors({ earliest:earliest, duration:duration }, anchors);
+
+    var tags = [];
+    if (placement.fit === 'forced') tags.push('tight day');
+    addAnchor({ key:'rule_'+rule.id, kind:rule.kind, title:rule.name, start:placement.start, end:placement.end,
+      location:rule.location, movable:true, source:'rule', sourceId:rule.id, tags:tags,
+      canTakeCalls: rule.canTakeCalls });
+  });
+
+  // 3) periodic rules (nutritionist-style, every N weeks)
+  (rules.periodicActivities||[]).forEach(function(rule){
+    if (ov.skipped.indexOf(rule.id) !== -1) return;
+    if (!isPeriodicApplicable(rule, dateStr, dow)) return;
+    var duration = rule.durationDefault || 45;
+
+    if (ov.done[rule.id]){
+      var d = ov.done[rule.id];
+      addAnchor({ key:'per_'+rule.id, kind:rule.kind, title:rule.name, start:d.start, end:d.start+d.duration,
+        location:rule.location, movable:true, source:'periodic', sourceId:rule.id, tags:['done'], isDone:true });
+      return;
+    }
+    if (ov.manualTimes[rule.id]){
+      var m = ov.manualTimes[rule.id];
+      addAnchor({ key:'per_'+rule.id, kind:rule.kind, title:rule.name, start:m.start, end:m.start+m.duration,
+        location:rule.location, movable:true, source:'periodic', sourceId:rule.id, tags:['adjusted'] });
+      return;
+    }
+
+    var earliest = Math.max(rule.opensAt, SCAN_START);
+    var gaps = computeGaps(anchors, SCAN_START, SCAN_END);
+    var placement = placeInGaps({ earliest:earliest, target:Math.max(rule.targetStart,earliest), duration:duration }, gaps);
+    if (!placement) placement = forcePlaceAfterAnchors({ earliest:earliest, duration:duration }, anchors);
+    var tags = placement.fit==='forced' ? ['tight day'] : [];
+    addAnchor({ key:'per_'+rule.id, kind:rule.kind, title:rule.name, start:placement.start, end:placement.end,
+      location:rule.location, movable:true, source:'periodic', sourceId:rule.id, tags:tags });
+  });
+
+  // 4) daily habits (guitar / japanese) — flexible, fill remaining gaps
+  rules.dailyHabits.forEach(function(habit){
+    if (ov.skipped.indexOf(habit.id) !== -1) return;
+
+    if (ov.done[habit.id]){
+      var d = ov.done[habit.id];
+      addAnchor({ key:'hab_'+habit.id, kind:habit.kind, title:habit.name, start:d.start, end:d.start+d.duration,
+        location:'Home', movable:true, source:'habit', sourceId:habit.id, tags:['done'], subtasks:habit.subtasks, isDone:true });
+      return;
+    }
+    if (ov.manualTimes[habit.id]){
+      var m = ov.manualTimes[habit.id];
+      addAnchor({ key:'hab_'+habit.id, kind:habit.kind, title:habit.name, start:m.start, end:m.start+m.duration,
+        location:'Home', movable:true, source:'habit', sourceId:habit.id, tags:['adjusted'], subtasks:habit.subtasks });
+      return;
+    }
+
+    var earliest = Math.max(prefs.dayStart, opts.replanAfter && dateStr===opts.replanDate ? opts.replanAfter : 0);
+    var target = clockToMin('18:00');
+    var gaps = computeGaps(anchors, SCAN_START, SCAN_END);
+    var placement = placeInGaps({ earliest:earliest, target:target, duration:habit.targetMin, minDuration:20 }, gaps);
+    if (!placement){
+      blocks.push({ key:'hab_'+habit.id, kind:habit.kind, title:habit.name, start:null, end:null,
+        location:'Home', movable:true, source:'habit', sourceId:habit.id, tags:['no room today'], subtasks:habit.subtasks, unscheduled:true });
+      return;
+    }
+    var tags = placement.fit==='shrunk' ? ['shortened to fit'] : [];
+    addAnchor({ key:'hab_'+habit.id, kind:habit.kind, title:habit.name, start:placement.start, end:placement.end,
+      location:'Home', movable:true, source:'habit', sourceId:habit.id, tags:tags, subtasks:habit.subtasks });
+  });
+
+  // 5) free time gaps (informational only)
+  var finalGaps = computeGaps(anchors, Math.max(SCAN_START, prefs.dayStart), Math.min(SCAN_END, prefs.dayEnd));
+  finalGaps.forEach(function(g, idx){
+    if (g[1]-g[0] < 30) return;
+    blocks.push({ key:'free_'+dateStr+'_'+idx, kind:'free', title:FREE_SUGGESTIONS[idx % FREE_SUGGESTIONS.length],
+      start:g[0], end:g[1], location:'', movable:false, source:'free', tags:[] });
+  });
+
+  // warnings: calls booked where they're not allowed
+  var warnings = [];
+  var noCallBlocks = blocks.filter(function(b){ return b.canTakeCalls === false && b.start != null; });
+  var callEvents = blocks.filter(function(b){ return b.kind === 'meeting' && b.start != null; });
+  callEvents.forEach(function(ce){
+    noCallBlocks.forEach(function(nb){
+      if (overlaps(ce.start, ce.end, nb.start, nb.end)){
+        warnings.push('"' + ce.title + '" overlaps ' + nb.title + ' — no calls there. Move the call or slide ' + nb.title.toLowerCase() + '.');
+      }
+    });
+  });
+
+  // mark past blocks (today only)
+  if (dateStr === todayStr()){
+    var now = nowMinutes();
+    blocks.forEach(function(b){ if (b.end != null) b.isPast = b.end <= now; });
+  }
+
+  blocks.sort(function(a,b){
+    var as = a.start==null ? 99999 : a.start;
+    var bs = b.start==null ? 99999 : b.start;
+    return as-bs;
+  });
+
+  return { blocks:blocks, warnings:warnings };
+}
+
+/* =========================================================
+   SECTION: RENDER
+   ========================================================= */
+function escapeHTML(s){
+  return String(s==null?'':s).replace(/[&<>"']/g, function(c){
+    return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c];
+  });
+}
+
+function weekDates(){
+  var arr = [];
+  for (var i=0;i<7;i++) arr.push(addDays(STATE.weekStart, i));
+  return arr;
+}
+
+function renderWeekRange(){
+  var dates = weekDates();
+  var a = dates[0], b = dates[6];
+  var txt = MONTH_SHORT[a.getMonth()] + ' ' + a.getDate() + ' – ' +
+    (a.getMonth()!==b.getMonth() ? MONTH_SHORT[b.getMonth()]+' ' : '') + b.getDate();
+  document.getElementById('weekRange').textContent = txt;
+}
+
+function renderWeekStrip(){
+  var el = document.getElementById('weekStrip');
+  var html = '';
+  weekDates().forEach(function(d){
+    var dateStr = toDateStr(d);
+    var sched = computeDaySchedule(dateStr, {});
+    var segs = sched.blocks.filter(function(b){ return b.start!=null && b.kind!=='free'; }).map(function(b){
+      var cat = CATS[b.kind] || CATS.custom;
+      var top = ((b.start-360)/ (1440-360)) * 100;
+      var height = ((b.end-b.start)/(1440-360)) * 100;
+      top = clamp(top,0,100); height = clamp(height,1,100-top);
+      return '<div class="strip-seg" style="top:'+top+'%; height:'+height+'%; background:'+cat.dot+'"></div>';
+    }).join('');
+    var isToday = dateStr === todayStr();
+    html += '<div class="strip-day'+(isToday?' is-today':'')+'" data-date="'+dateStr+'">'+
+      '<div class="strip-label">'+DOW_SHORT[d.getDay()]+'</div>'+
+      '<div class="strip-bar" data-action="jump" data-date="'+dateStr+'">'+segs+'</div>'+
+    '</div>';
+  });
+  el.innerHTML = html;
+}
+
+function blockRowHTML(dateStr, block){
+  var cat = CATS[block.kind] || CATS.custom;
+  var timeLabel = block.start!=null ? fmtRange(block.start, block.end) : 'Unscheduled today';
+  var classes = 'block' + (block.kind==='free' ? ' free' : '') + (block.isPast ? ' is-past' : '');
+  var editable = block.kind !== 'free' && block.kind !== 'travel';
+  var style = 'style="--dot:'+cat.dot+'"';
+
+  var metaParts = [];
+  if (block.location) metaParts.push(block.location);
+  (block.tags||[]).forEach(function(t){ metaParts.push(t); });
+  if (block.canTakeCalls === true) metaParts.push('📞 calls OK here');
+  var metaHTML = metaParts.length ? ('<div class="meta">' + metaParts.map(function(m){
+    return '<span class="tag" style="--tagbg:'+cat.bg+'">'+escapeHTML(m)+'</span>';
+  }).join('') + '</div>') : '';
+
+  var subtasksHTML = '';
+  if (block.subtasks && block.subtasks.length){
+    var ov = getOverride(dateStr);
+    var done = (ov.subtaskDone && ov.subtaskDone[block.sourceId]) || [];
+    subtasksHTML = '<div class="subtasks">' + block.subtasks.map(function(s,i){
+      var checked = done[i] ? 'checked' : '';
+      return '<label class="subtask"><input type="checkbox" class="subtask-check" data-date="'+dateStr+'" data-habit="'+block.sourceId+'" data-idx="'+i+'" '+checked+'> '+escapeHTML(s)+'</label>';
+    }).join('') + '</div>';
+  }
+
+  var editAttr = editable ? ' data-editable="1" data-key="'+block.key+'" data-date="'+dateStr+'"' : '';
+
+  return '<div class="'+classes+'" '+style+editAttr+'>' +
+    '<div class="row1"><span class="time mono">'+timeLabel+'</span><span class="title">'+cat.icon+' '+escapeHTML(block.title)+'</span>' +
+    (editable ? '<button class="block-edit-btn" data-action="edit" data-key="'+block.key+'" data-date="'+dateStr+'">edit ›</button>' : '') +
+    '</div>' + metaHTML + subtasksHTML +
+  '</div>';
+}
+
+function dayChipsHTML(sched){
+  return sched.blocks.filter(function(b){ return b.kind!=='free' && b.kind!=='travel' && b.start!=null; }).map(function(b){
+    var cat = CATS[b.kind] || CATS.custom;
+    return '<span class="chip" style="background:'+cat.bg+'; color:var(--ink);">'+cat.icon+' '+minToClock(b.start).replace(' ','')+'</span>';
+  }).join('');
+}
+
+function dayCardHTML(d){
+  var dateStr = toDateStr(d);
+  var isToday = dateStr === todayStr();
+  var expanded = !!STATE.expandedDates[dateStr];
+  var sched = computeDaySchedule(dateStr, {});
+
+  var warningsHTML = sched.warnings.map(function(w){
+    return '<div class="day-warning">⚠️ ' + escapeHTML(w) + '</div>';
+  }).join('');
+
+  var bodyHTML;
+  if (sched.blocks.length === 0){
+    bodyHTML = '<div class="empty-day">Open route — nothing planned yet.</div>';
+  } else {
+    bodyHTML = '<div class="route">' + sched.blocks.map(function(b){ return blockRowHTML(dateStr, b); }).join('') + '</div>';
+  }
+
+  var wakeToggle = '';
+  var hasClimb = STATE.rules.recurringActivities.some(function(r){ return r.kind==='climb' && r.days.indexOf(d.getDay())!==-1; });
+  if (hasClimb){
+    var ov = getOverride(dateStr);
+    wakeToggle = '<button class="btn small'+(ov.wakeLate?' primary':'')+'" data-action="toggle-wake" data-date="'+dateStr+'" style="margin:2px 0 8px 30px;">'+(ov.wakeLate?'😴 Slept in — later start':'☀️ Normal wake time')+'</button>';
+  }
+
+  return '<div class="day-card'+(isToday?' is-today':'')+(expanded?' expanded':'')+'" data-date="'+dateStr+'">' +
+    '<div class="day-head" data-action="toggle-day" data-date="'+dateStr+'">' +
+      '<div class="dow">'+DOW_SHORT[d.getDay()]+'<span class="date mono">'+MONTH_SHORT[d.getMonth()]+' '+d.getDate()+'</span></div>' +
+      '<div class="chips">'+dayChipsHTML(sched)+'</div>' +
+      '<div class="caret">▸</div>' +
+    '</div>' +
+    warningsHTML +
+    '<div class="day-body">' + wakeToggle + bodyHTML + '</div>' +
+  '</div>';
+}
+
+function renderDayList(){
+  var el = document.getElementById('dayList');
+  el.innerHTML = weekDates().map(dayCardHTML).join('');
+}
+
+function renderAll(){
+  renderWeekRange();
+  renderWeekStrip();
+  renderDayList();
+}
+
+function showToast(msg){
+  var t = document.getElementById('toast');
+  t.textContent = msg;
+  t.classList.add('show');
+  clearTimeout(showToast._tid);
+  showToast._tid = setTimeout(function(){ t.classList.remove('show'); }, 2200);
+}
+
+/* =========================================================
+   SECTION: EVENT HANDLERS
+   ========================================================= */
+
+/* ---- Connect to Google Sheets ---- */
+function openConnectScreen(){
+  document.getElementById('cfUrl').value = CONFIG ? CONFIG.url || '' : '';
+  document.getElementById('cfToken').value = CONFIG ? CONFIG.token || '' : '';
+  document.getElementById('connectError').style.display = 'none';
+  document.getElementById('connectOverlay').classList.remove('hidden');
+}
+function closeConnectScreen(){ document.getElementById('connectOverlay').classList.add('hidden'); }
+
+async function testConnection(url, token){
+  var tmp = { url:url, token:token };
+  var res = await jsonpRequest(tmp.url, { action:'get', key:'__ping__', token:tmp.token }, 8000);
+  if (!res || res.ok !== true) throw new Error((res && res.error) || 'Unexpected response — double check the URL and token');
+  return true;
+}
+
+async function submitConnectForm(ev){
+  ev.preventDefault();
+  var url = document.getElementById('cfUrl').value.trim();
+  var token = document.getElementById('cfToken').value.trim();
+  var errEl = document.getElementById('connectError');
+  var btn = document.getElementById('cfSubmit');
+  errEl.style.display = 'none';
+  btn.textContent = 'Testing…'; btn.disabled = true;
+  try{
+    await testConnection(url, token);
+    saveGSConfig({ url:url, token:token });
+    showToast('Connected — reloading…');
+    setTimeout(function(){ location.reload(); }, 400);
+  }catch(e){
+    errEl.textContent = "Couldn't reach that sheet: " + e.message + '. Check the deployment is "Anyone" access and the token matches Code.gs.';
+    errEl.style.display = 'block';
+    btn.textContent = 'Test & connect'; btn.disabled = false;
+  }
+}
+
+var EVENT_KIND_OPTIONS = [
+  ['meeting','💻 Meeting / call'],
+  ['appt','🩺 Doctor / appointment'],
+  ['social','🍽️ Dinner / social'],
+  ['custom','📌 Other']
+];
+
+/* ---- Add / Edit event modal ---- */
+function openEventModal(existing, prefillDate){
+  var isEdit = !!existing;
+  document.getElementById('eventSheetTitle').textContent = isEdit ? 'Edit event' : 'Add event';
+  var kindOptions = EVENT_KIND_OPTIONS.map(function(k){
+    var sel = existing && existing.kind===k[0] ? 'selected' : '';
+    return '<option value="'+k[0]+'" '+sel+'>'+k[1]+'</option>';
+  }).join('');
+
+  document.getElementById('eventForm').innerHTML =
+    '<input type="hidden" id="efId" value="'+(existing?existing.id:'')+'">' +
+    '<div class="field"><label>Title</label><input type="text" id="efTitle" placeholder="e.g. Client call" value="'+escapeHTML(existing?existing.title:'')+'" required></div>' +
+    '<div class="field-row">' +
+      '<div class="field"><label>Date</label><input type="date" id="efDate" value="'+(existing?existing.date:(prefillDate||todayStr()))+'" required></div>' +
+      '<div class="field"><label>Start</label><input type="time" id="efStart" value="'+(existing?minToClock24(existing.start):'09:00')+'" required></div>' +
+    '</div>' +
+    '<div class="field-row">' +
+      '<div class="field"><label>Duration (min)</label><input type="number" id="efDuration" min="5" step="5" value="'+(existing?existing.duration:60)+'" required></div>' +
+      '<div class="field"><label>Travel time (min)</label><input type="number" id="efTravel" min="0" step="5" value="'+(existing?(existing.travel||0):0)+'"></div>' +
+    '</div>' +
+    '<div class="field"><label>Location</label><input type="text" id="efLocation" placeholder="e.g. Home, Downtown" value="'+escapeHTML(existing?existing.location:'')+'"></div>' +
+    '<div class="field"><label>Type</label><select id="efKind">'+kindOptions+'</select></div>' +
+    '<div class="sheet-actions">' +
+      (isEdit ? '<button type="button" class="btn danger" id="efDelete">Delete</button>' : '') +
+      '<button type="submit" class="btn primary">Save</button>' +
+    '</div>';
+
+  document.getElementById('eventOverlay').classList.remove('hidden');
+  if (isEdit) document.getElementById('efDelete').addEventListener('click', function(){
+    STATE.events = STATE.events.filter(function(e){ return e.id !== existing.id; });
+    saveEventsToStore();
+    closeEventModal();
+    renderAll();
+    showToast('Event removed');
+  });
+}
+
+function closeEventModal(){ document.getElementById('eventOverlay').classList.add('hidden'); }
+
+function submitEventForm(ev){
+  ev.preventDefault();
+  var id = document.getElementById('efId').value;
+  var obj = {
+    id: id || uid('evt'),
+    title: document.getElementById('efTitle').value.trim() || 'Untitled',
+    date: document.getElementById('efDate').value,
+    start: clockToMin(document.getElementById('efStart').value),
+    duration: Number(document.getElementById('efDuration').value) || 30,
+    travel: Number(document.getElementById('efTravel').value) || 0,
+    location: document.getElementById('efLocation').value.trim(),
+    kind: document.getElementById('efKind').value
+  };
+  if (id){
+    STATE.events = STATE.events.map(function(e){ return e.id===id ? obj : e; });
+  } else {
+    STATE.events.push(obj);
+  }
+  saveEventsToStore();
+  closeEventModal();
+  STATE.expandedDates[obj.date] = true;
+  renderAll();
+  showToast('Saved');
+}
+
+/* ---- Block editor (recurring / periodic / habit instances) ---- */
+function openBlockEditor(dateStr, block){
+  var ov = getOverride(dateStr);
+  var isDone = !!ov.done[block.sourceId];
+  var isSkipped = ov.skipped.indexOf(block.sourceId) !== -1;
+  var hasOverride = !!ov.manualTimes[block.sourceId] || isDone;
+
+  document.getElementById('blockSheetTitle').textContent = block.title + ' — ' + DOW_SHORT[fromDateStr(dateStr).getDay()] + ' ' + MONTH_SHORT[fromDateStr(dateStr).getMonth()] + ' ' + fromDateStr(dateStr).getDate();
+
+  var startVal = block.start!=null ? minToClock24(block.start) : '';
+  var durVal = block.start!=null ? (block.end-block.start) : (block.targetMin || 45);
+
+  document.getElementById('blockForm').innerHTML =
+    (block.unscheduled ? '<p class="note" style="margin-bottom:10px;">The auto-planner couldn\'t find room today. Pick a time by hand:</p>' : '') +
+    '<div class="field-row">' +
+      '<div class="field"><label>Start</label><input type="time" id="bfStart" value="'+startVal+'"></div>' +
+      '<div class="field"><label>Duration (min)</label><input type="number" id="bfDuration" min="5" step="5" value="'+durVal+'"></div>' +
+    '</div>' +
+    '<div class="sheet-actions">' +
+      '<button type="button" class="btn small" id="bfMarkDone">'+(isDone?'Undo done':'Mark done ✅')+'</button>' +
+      '<button type="button" class="btn small" id="bfSkip">'+(isSkipped?'Unskip':'Skip today')+'</button>' +
+    '</div>' +
+    '<div class="sheet-actions">' +
+      (hasOverride ? '<button type="button" class="btn ghost small" id="bfReset">Reset to auto</button>' : '') +
+      '<button type="submit" class="btn primary">Save time</button>' +
+    '</div>';
+
+  document.getElementById('blockOverlay').classList.remove('hidden');
+
+  document.getElementById('bfMarkDone').addEventListener('click', function(){
+    if (isDone){ delete ov.done[block.sourceId]; }
+    else if (block.start!=null){ ov.done[block.sourceId] = { start:block.start, duration:block.end-block.start }; }
+    saveOverridesToStore(); closeBlockEditor(); renderAll(); showToast(isDone?'Marked not done':'Nice — marked done');
+  });
+  document.getElementById('bfSkip').addEventListener('click', function(){
+    if (isSkipped) ov.skipped = ov.skipped.filter(function(x){ return x!==block.sourceId; });
+    else ov.skipped.push(block.sourceId);
+    saveOverridesToStore(); closeBlockEditor(); renderAll(); showToast(isSkipped?'Back on the schedule':'Skipped for today');
+  });
+  var resetBtn = document.getElementById('bfReset');
+  if (resetBtn) resetBtn.addEventListener('click', function(){
+    delete ov.manualTimes[block.sourceId];
+    delete ov.done[block.sourceId];
+    saveOverridesToStore(); closeBlockEditor(); renderAll(); showToast('Back to auto-planned');
+  });
+
+  document.getElementById('blockForm').onsubmit = function(e){
+    e.preventDefault();
+    var start = clockToMin(document.getElementById('bfStart').value);
+    var duration = Number(document.getElementById('bfDuration').value) || 30;
+    if (isDone) ov.done[block.sourceId] = { start:start, duration:duration };
+    else ov.manualTimes[block.sourceId] = { start:start, duration:duration };
+    saveOverridesToStore(); closeBlockEditor(); renderAll(); showToast('Time updated');
+  };
+}
+
+function closeBlockEditor(){ document.getElementById('blockOverlay').classList.add('hidden'); }
+
+function handleEditBlock(dateStr, key){
+  var sched = computeDaySchedule(dateStr, {});
+  var block = sched.blocks.find(function(b){ return b.key===key; });
+  if (!block) return;
+  if (block.source === 'event'){
+    var ev = STATE.events.find(function(e){ return e.id===block.sourceId; });
+    openEventModal(ev);
+  } else {
+    openBlockEditor(dateStr, block);
+  }
+}
+
+/* ---- Rules editor ---- */
+function dayTogglesHTML(days){
+  var out = '';
+  for (var i=0;i<7;i++){
+    out += '<button type="button" class="day-toggle'+(days.indexOf(i)!==-1?' on':'')+'" data-day="'+i+'">'+DOW_SHORT[i][0]+'</button>';
+  }
+  return out;
+}
+
+function recurringCardHTML(rule){
+  var durByDayHTML = '';
+  for (var i=0;i<7;i++){
+    var v = rule.durationByDay ? (rule.durationByDay[i]!=null ? rule.durationByDay[i] : '') : '';
+    durByDayHTML += '<input type="number" class="mono" style="width:44px; padding:5px; font-size:11px; border:1px solid var(--border); border-radius:5px;" data-field="durByDay" data-day="'+i+'" placeholder="'+DOW_SHORT[i][0]+'" value="'+v+'" title="'+DOW_SHORT[i]+' minutes (blank = default)">';
+  }
+  return '<div class="rule-card recurring-card" data-id="'+rule.id+'" data-kind="'+rule.kind+'">' +
+    '<div class="rule-card-head"><input type="text" class="name mono" data-field="name" value="'+escapeHTML(rule.name)+'" style="border:none;background:transparent;font-weight:600;font-size:13.5px;width:60%;padding:2px 0;">' +
+      '<button type="button" class="btn small ghost" data-action="remove-card">✕</button></div>' +
+    '<div class="day-toggles" style="margin-bottom:8px;">'+dayTogglesHTML(rule.days)+'</div>' +
+    '<div class="field-row">' +
+      '<div class="field"><label>Opens at</label><input type="time" data-field="opensAt" value="'+minToClock24(rule.opensAt)+'"></div>' +
+      '<div class="field"><label>Preferred start</label><input type="time" data-field="targetStart" value="'+minToClock24(rule.targetStart)+'"></div>' +
+    '</div>' +
+    '<div class="field-row">' +
+      '<div class="field"><label>Duration (min, default)</label><input type="number" data-field="durationDefault" value="'+(rule.durationDefault||60)+'"></div>' +
+      '<div class="field"><label>Later start if slept in</label><input type="time" data-field="lateStart" value="'+(rule.lateStart!=null?minToClock24(rule.lateStart):'')+'"></div>' +
+    '</div>' +
+    '<div class="field"><label>Location</label><input type="text" data-field="location" value="'+escapeHTML(rule.location||'')+'"></div>' +
+    '<label class="checkline"><input type="checkbox" data-field="canTakeCalls" '+(rule.canTakeCalls?'checked':'')+'> Can take calls here</label>' +
+    '<div class="note">Per-day duration override (blank = use default above):</div>' +
+    '<div style="display:flex; gap:4px; margin-top:4px;">'+durByDayHTML+'</div>' +
+  '</div>';
+}
+
+function periodicCardHTML(rule){
+  var dayOpts = DOW_SHORT.map(function(d,i){ return '<option value="'+i+'" '+(rule.dayOfWeek===i?'selected':'')+'>'+d+'</option>'; }).join('');
+  return '<div class="rule-card periodic-card" data-id="'+rule.id+'" data-kind="'+rule.kind+'">' +
+    '<div class="rule-card-head"><input type="text" class="name mono" data-field="name" value="'+escapeHTML(rule.name)+'" style="border:none;background:transparent;font-weight:600;font-size:13.5px;width:60%;padding:2px 0;">' +
+      '<button type="button" class="btn small ghost" data-action="remove-card">✕</button></div>' +
+    '<div class="field-row">' +
+      '<div class="field"><label>Weekday</label><select data-field="dayOfWeek">'+dayOpts+'</select></div>' +
+      '<div class="field"><label>Every N weeks</label><input type="number" min="1" data-field="intervalWeeks" value="'+rule.intervalWeeks+'"></div>' +
+    '</div>' +
+    '<div class="field-row">' +
+      '<div class="field"><label>Anchor date</label><input type="date" data-field="anchorDate" value="'+rule.anchorDate+'"></div>' +
+      '<div class="field"><label>Duration (min)</label><input type="number" data-field="durationDefault" value="'+(rule.durationDefault||45)+'"></div>' +
+    '</div>' +
+    '<div class="field-row">' +
+      '<div class="field"><label>Opens at</label><input type="time" data-field="opensAt" value="'+minToClock24(rule.opensAt)+'"></div>' +
+      '<div class="field"><label>Preferred start</label><input type="time" data-field="targetStart" value="'+minToClock24(rule.targetStart)+'"></div>' +
+    '</div>' +
+    '<div class="field"><label>Location</label><input type="text" data-field="location" value="'+escapeHTML(rule.location||'')+'"></div>' +
+    '<label class="checkline"><input type="checkbox" data-field="canTakeCalls" '+(rule.canTakeCalls?'checked':'')+'> Can take calls here</label>' +
+  '</div>';
+}
+
+function habitCardHTML(h){
+  return '<div class="rule-card habit-card" data-id="'+h.id+'" data-kind="'+h.kind+'">' +
+    '<div class="rule-card-head"><input type="text" class="name mono" data-field="name" value="'+escapeHTML(h.name)+'" style="border:none;background:transparent;font-weight:600;font-size:13.5px;width:60%;padding:2px 0;">' +
+      '<button type="button" class="btn small ghost" data-action="remove-card">✕</button></div>' +
+    '<div class="field"><label>Target minutes / day</label><input type="number" data-field="targetMin" value="'+h.targetMin+'"></div>' +
+    '<div class="field"><label>Sub-steps (comma separated, optional)</label><input type="text" data-field="subtasks" value="'+escapeHTML((h.subtasks||[]).join(', '))+'"></div>' +
+  '</div>';
+}
+
+function openRulesEditor(){
+  var r = STATE.rules;
+  var html =
+    '<div class="rules-section"><h3>Recurring activities</h3><div id="recurringList">' +
+      r.recurringActivities.map(recurringCardHTML).join('') +
+    '</div><button type="button" class="btn small" id="addRecurring">+ Add recurring activity</button></div>' +
+    '<div class="rules-section"><h3>Every-few-weeks activities</h3><div id="periodicList">' +
+      (r.periodicActivities||[]).map(periodicCardHTML).join('') +
+    '</div><button type="button" class="btn small" id="addPeriodic">+ Add every-few-weeks activity</button></div>' +
+    '<div class="rules-section"><h3>Daily habits</h3><div id="habitList">' +
+      r.dailyHabits.map(habitCardHTML).join('') +
+    '</div><button type="button" class="btn small" id="addHabit">+ Add daily habit</button></div>' +
+    '<div class="rules-section"><h3>Preferences</h3>' +
+      '<div class="field-row">' +
+        '<div class="field"><label>Day starts</label><input type="time" id="prefDayStart" value="'+minToClock24(r.preferences.dayStart)+'"></div>' +
+        '<div class="field"><label>Day ends</label><input type="time" id="prefDayEnd" value="'+minToClock24(r.preferences.dayEnd)+'"></div>' +
+      '</div>' +
+      '<label class="checkline"><input type="checkbox" id="prefEatHome" '+(r.preferences.preferEatAtHome?'checked':'')+'> Prefer eating at home</label>' +
+      '<label class="checkline"><input type="checkbox" id="prefGoingOut" '+(r.preferences.wantsGoingOut?'checked':'')+'> Leave room to go out</label>' +
+    '</div>';
+  document.getElementById('rulesBody').innerHTML = html;
+  document.getElementById('rulesOverlay').classList.remove('hidden');
+
+  document.getElementById('addRecurring').addEventListener('click', function(){
+    var blank = { id:uid('rule'), name:'New activity', kind:'custom', days:[], location:'', opensAt:420, targetStart:540, canTakeCalls:false, durationDefault:60 };
+    document.getElementById('recurringList').insertAdjacentHTML('beforeend', recurringCardHTML(blank));
+  });
+  document.getElementById('addPeriodic').addEventListener('click', function(){
+    var blank = { id:uid('per'), name:'New appointment', kind:'appt', dayOfWeek:3, intervalWeeks:3, anchorDate:todayStr(), opensAt:480, targetStart:540, durationDefault:45, canTakeCalls:false, location:'' };
+    document.getElementById('periodicList').insertAdjacentHTML('beforeend', periodicCardHTML(blank));
+  });
+  document.getElementById('addHabit').addEventListener('click', function(){
+    var blank = { id:uid('hab'), name:'New habit', kind:'custom', targetMin:30, subtasks:[] };
+    document.getElementById('habitList').insertAdjacentHTML('beforeend', habitCardHTML(blank));
+  });
+}
+
+function closeRulesEditor(){ document.getElementById('rulesOverlay').classList.add('hidden'); }
+
+function collectRulesFromForm(){
+  var recurring = Array.prototype.map.call(document.querySelectorAll('.recurring-card'), function(card){
+    var days = Array.prototype.map.call(card.querySelectorAll('.day-toggle.on'), function(b){ return Number(b.getAttribute('data-day')); });
+    var durationByDay = {};
+    Array.prototype.forEach.call(card.querySelectorAll('[data-field=durByDay]'), function(inp){
+      if (inp.value.trim()!=='') durationByDay[Number(inp.getAttribute('data-day'))] = Number(inp.value);
+    });
+    var lateVal = card.querySelector('[data-field=lateStart]').value;
+    var rule = {
+      id: card.getAttribute('data-id'), kind: card.getAttribute('data-kind'),
+      name: card.querySelector('[data-field=name]').value.trim() || 'Untitled',
+      days: days,
+      opensAt: clockToMin(card.querySelector('[data-field=opensAt]').value || '06:00'),
+      targetStart: clockToMin(card.querySelector('[data-field=targetStart]').value || '09:00'),
+      durationDefault: Number(card.querySelector('[data-field=durationDefault]').value) || 60,
+      location: card.querySelector('[data-field=location]').value.trim(),
+      canTakeCalls: card.querySelector('[data-field=canTakeCalls]').checked,
+      note:''
+    };
+    if (Object.keys(durationByDay).length) rule.durationByDay = durationByDay;
+    if (lateVal) rule.lateStart = clockToMin(lateVal);
+    return rule;
+  });
+
+  var periodic = Array.prototype.map.call(document.querySelectorAll('.periodic-card'), function(card){
+    return {
+      id: card.getAttribute('data-id'), kind: card.getAttribute('data-kind'),
+      name: card.querySelector('[data-field=name]').value.trim() || 'Untitled',
+      dayOfWeek: Number(card.querySelector('[data-field=dayOfWeek]').value),
+      intervalWeeks: Number(card.querySelector('[data-field=intervalWeeks]').value) || 1,
+      anchorDate: card.querySelector('[data-field=anchorDate]').value || todayStr(),
+      opensAt: clockToMin(card.querySelector('[data-field=opensAt]').value || '08:00'),
+      targetStart: clockToMin(card.querySelector('[data-field=targetStart]').value || '09:00'),
+      durationDefault: Number(card.querySelector('[data-field=durationDefault]').value) || 45,
+      location: card.querySelector('[data-field=location]').value.trim(),
+      canTakeCalls: card.querySelector('[data-field=canTakeCalls]').checked,
+      note:''
+    };
+  });
+
+  var habits = Array.prototype.map.call(document.querySelectorAll('.habit-card'), function(card){
+    var subRaw = card.querySelector('[data-field=subtasks]').value.trim();
+    return {
+      id: card.getAttribute('data-id'), kind: card.getAttribute('data-kind'),
+      name: card.querySelector('[data-field=name]').value.trim() || 'Untitled',
+      targetMin: Number(card.querySelector('[data-field=targetMin]').value) || 30,
+      atHome: true,
+      subtasks: subRaw ? subRaw.split(',').map(function(s){ return s.trim(); }).filter(Boolean) : []
+    };
+  });
+
+  var preferences = {
+    dayStart: clockToMin(document.getElementById('prefDayStart').value || '07:00'),
+    dayEnd: clockToMin(document.getElementById('prefDayEnd').value || '23:00'),
+    preferEatAtHome: document.getElementById('prefEatHome').checked,
+    wantsGoingOut: document.getElementById('prefGoingOut').checked
+  };
+
+  return { recurringActivities:recurring, periodicActivities:periodic, dailyHabits:habits, preferences:preferences };
+}
+
+/* ---- Delegated interactions ---- */
+function wireUpEvents(){
+  document.getElementById('btnAddEvent').addEventListener('click', function(){ openEventModal(null, todayStr()); });
+  document.getElementById('closeEventSheet').addEventListener('click', closeEventModal);
+  document.getElementById('eventOverlay').addEventListener('click', function(e){ if (e.target.id==='eventOverlay') closeEventModal(); });
+  document.getElementById('eventForm').addEventListener('submit', submitEventForm);
+
+  document.getElementById('closeBlockSheet').addEventListener('click', closeBlockEditor);
+  document.getElementById('blockOverlay').addEventListener('click', function(e){ if (e.target.id==='blockOverlay') closeBlockEditor(); });
+
+  document.getElementById('btnRules').addEventListener('click', openRulesEditor);
+  document.getElementById('closeRulesSheet').addEventListener('click', closeRulesEditor);
+  document.getElementById('rulesOverlay').addEventListener('click', function(e){ if (e.target.id==='rulesOverlay') closeRulesEditor(); });
+  document.getElementById('saveRules').addEventListener('click', function(){
+    STATE.rules = collectRulesFromForm();
+    saveRulesToStore();
+    closeRulesEditor();
+    renderAll();
+    showToast('Rules saved');
+  });
+
+  document.getElementById('rulesBody').addEventListener('click', function(e){
+    var toggle = e.target.closest('.day-toggle');
+    if (toggle){ toggle.classList.toggle('on'); return; }
+    var rm = e.target.closest('[data-action=remove-card]');
+    if (rm){ rm.closest('.rule-card').remove(); return; }
+  });
+
+  document.getElementById('btnPrevWeek').addEventListener('click', function(){
+    STATE.weekStart = addDays(STATE.weekStart, -7); renderAll();
+  });
+  document.getElementById('btnNextWeek').addEventListener('click', function(){
+    STATE.weekStart = addDays(STATE.weekStart, 7); renderAll();
+  });
+  document.getElementById('btnToday').addEventListener('click', function(){
+    STATE.weekStart = startOfWeek(new Date());
+    STATE.expandedDates[todayStr()] = true;
+    renderAll();
+  });
+
+  document.getElementById('btnReplan').addEventListener('click', function(){
+    var dateStr = todayStr();
+    var now = nowMinutes();
+    var sched = computeDaySchedule(dateStr, { replanAfter: now, replanDate: dateStr });
+    var ov = getOverride(dateStr);
+    sched.blocks.forEach(function(b){
+      if ((b.source==='rule' || b.source==='periodic' || b.source==='habit') && b.start!=null && !b.isDone){
+        ov.manualTimes[b.sourceId] = { start:b.start, duration:b.end-b.start };
+      }
+    });
+    saveOverridesToStore();
+    STATE.expandedDates[dateStr] = true;
+    STATE.weekStart = startOfWeek(new Date());
+    renderAll();
+    showToast('Replanned from ' + minToClock(now));
+  });
+
+  document.getElementById('btnConnect').addEventListener('click', openConnectScreen);
+  document.getElementById('closeConnectSheet').addEventListener('click', closeConnectScreen);
+  document.getElementById('connectOverlay').addEventListener('click', function(e){ if (e.target.id==='connectOverlay') closeConnectScreen(); });
+  document.getElementById('connectForm').addEventListener('submit', submitConnectForm);
+  document.getElementById('cfSkip').addEventListener('click', closeConnectScreen);
+
+  document.getElementById('btnSync').addEventListener('click', function(){ pollForChanges({ force:true }); });
+
+  document.getElementById('weekStrip').addEventListener('click', function(e){
+    var jump = e.target.closest('[data-action=jump]');
+    if (!jump) return;
+    var date = jump.getAttribute('data-date');
+    STATE.expandedDates[date] = true;
+    renderAll();
+    var card = document.querySelector('.day-card[data-date="'+date+'"]');
+    if (card) card.scrollIntoView({ behavior:'smooth', block:'start' });
+  });
+
+  document.getElementById('dayList').addEventListener('click', function(e){
+    var subCheck = e.target.closest('.subtask-check');
+    if (subCheck){
+      var d = subCheck.getAttribute('data-date'), hab = subCheck.getAttribute('data-habit'), idx = Number(subCheck.getAttribute('data-idx'));
+      var ov = getOverride(d);
+      if (!ov.subtaskDone) ov.subtaskDone = {};
+      if (!ov.subtaskDone[hab]) ov.subtaskDone[hab] = [];
+      ov.subtaskDone[hab][idx] = subCheck.checked;
+      saveOverridesToStore();
+      return;
+    }
+    var wakeBtn = e.target.closest('[data-action=toggle-wake]');
+    if (wakeBtn){
+      var date = wakeBtn.getAttribute('data-date');
+      var ov2 = getOverride(date);
+      ov2.wakeLate = !ov2.wakeLate;
+      saveOverridesToStore(); renderAll();
+      return;
+    }
+    var editBtn = e.target.closest('[data-action=edit]');
+    if (editBtn){
+      handleEditBlock(editBtn.getAttribute('data-date'), editBtn.getAttribute('data-key'));
+      return;
+    }
+    var head = e.target.closest('[data-action=toggle-day]');
+    if (head){
+      var dt = head.getAttribute('data-date');
+      STATE.expandedDates[dt] = !STATE.expandedDates[dt];
+      renderDayList();
+      return;
+    }
+  });
+}
+
+/* =========================================================
+   SECTION: INIT
+   ========================================================= */
+async function init(){
+  await loadState();
+  wireUpEvents();
+  renderAll();
+  updateSyncFooter();
+
+  if (!storageAvailable) openConnectScreen();
+
+  setInterval(function(){ pollForChanges(); }, SYNC_INTERVAL_MS);
+  document.addEventListener('visibilitychange', function(){
+    if (document.visibilityState === 'visible') pollForChanges();
+  });
+  window.addEventListener('focus', function(){ pollForChanges(); });
+}
+
+if (document.readyState === 'loading'){
+  document.addEventListener('DOMContentLoaded', init);
+} else {
+  init();
+}
+
+</script>
+</body>
+</html>
