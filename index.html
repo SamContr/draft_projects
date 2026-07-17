@@ -586,12 +586,13 @@ async function saveOverridesToStore(){ await storeSet('planner-overrides', STATE
 
 function getOverride(dateStr){
   if (!STATE.overrides[dateStr]){
-    STATE.overrides[dateStr] = { wakeLate:false, done:{}, manualTimes:{}, skipped:[], replanAfter:null };
+    STATE.overrides[dateStr] = { wakeLate:false, done:{}, manualTimes:{}, skipped:[], pinned:[], replanAfter:null };
   }
   var o = STATE.overrides[dateStr];
   if (!o.done) o.done = {};
   if (!o.manualTimes) o.manualTimes = {};
   if (!o.skipped) o.skipped = [];
+  if (!o.pinned) o.pinned = [];
   return o;
 }
 
@@ -755,6 +756,24 @@ function isPeriodicApplicable(rule, dateStr, dow){
   return ((diffWeeks % rule.intervalWeeks)+rule.intervalWeeks) % rule.intervalWeeks === 0;
 }
 
+// Whenever something on a day changes (a block is edited, a new event is added,
+// something is skipped), the rest of that day should replan around it — both
+// earlier and later — rather than leaving old manual placements frozen in place.
+// The only things that stay put are: whatever was just edited (exceptSourceId),
+// anything marked "done", and (for today) anything whose time has already passed.
+function clearStaleManualOverrides(dateStr, exceptSourceId){
+  var ov = getOverride(dateStr);
+  var now = (dateStr === todayStr()) ? nowMinutes() : -1;
+  Object.keys(ov.manualTimes).forEach(function(id){
+    if (id === exceptSourceId) return;
+    if (ov.done[id]) return; // completed items never move
+    if (ov.pinned.indexOf(id) !== -1) return; // explicitly pinned — never auto-cleared
+    var m = ov.manualTimes[id];
+    if (now >= 0 && m.start + m.duration <= now) return; // already happened — leave it
+    delete ov.manualTimes[id];
+  });
+}
+
 function computeDaySchedule(dateStr, opts){
   opts = opts || {};
   var rules = STATE.rules;
@@ -802,9 +821,10 @@ function computeDaySchedule(dateStr, opts){
     }
     if (ov.manualTimes[rule.id]){
       var m = ov.manualTimes[rule.id];
+      var isPinned = ov.pinned.indexOf(rule.id) !== -1;
       addAnchor({ key:'rule_'+rule.id, kind:rule.kind, title:rule.name, start:m.start, end:m.start+m.duration,
-        location:rule.location, movable:true, source:'rule', sourceId:rule.id, tags:['adjusted'],
-        canTakeCalls: rule.canTakeCalls });
+        location:rule.location, movable:true, source:'rule', sourceId:rule.id, tags: isPinned ? ['pinned'] : ['adjusted'],
+        canTakeCalls: rule.canTakeCalls, pinned:isPinned });
       return;
     }
 
@@ -837,8 +857,9 @@ function computeDaySchedule(dateStr, opts){
     }
     if (ov.manualTimes[rule.id]){
       var m = ov.manualTimes[rule.id];
+      var isPinnedP = ov.pinned.indexOf(rule.id) !== -1;
       addAnchor({ key:'per_'+rule.id, kind:rule.kind, title:rule.name, start:m.start, end:m.start+m.duration,
-        location:rule.location, movable:true, source:'periodic', sourceId:rule.id, tags:['adjusted'] });
+        location:rule.location, movable:true, source:'periodic', sourceId:rule.id, tags: isPinnedP ? ['pinned'] : ['adjusted'], pinned:isPinnedP });
       return;
     }
 
@@ -863,8 +884,9 @@ function computeDaySchedule(dateStr, opts){
     }
     if (ov.manualTimes[habit.id]){
       var m = ov.manualTimes[habit.id];
+      var isPinnedH = ov.pinned.indexOf(habit.id) !== -1;
       addAnchor({ key:'hab_'+habit.id, kind:habit.kind, title:habit.name, start:m.start, end:m.start+m.duration,
-        location:'Home', movable:true, source:'habit', sourceId:habit.id, tags:['adjusted'], subtasks:habit.subtasks });
+        location:'Home', movable:true, source:'habit', sourceId:habit.id, tags: isPinnedH ? ['pinned'] : ['adjusted'], subtasks:habit.subtasks, pinned:isPinnedH });
       return;
     }
 
@@ -887,6 +909,7 @@ function computeDaySchedule(dateStr, opts){
   // lower-priority one instead of leaving a silent double-booking. This also drops
   // any stale manual lock on the block that yields, so it goes back to auto-placement.
   function priorityOf(b){
+    if (b.pinned) return -1;
     if (b.source === 'event' || b.source === 'travel') return 0;
     if (b.source === 'rule') return 1;
     if (b.source === 'periodic') return 2;
@@ -899,7 +922,7 @@ function computeDaySchedule(dateStr, opts){
       changed = false; guard++;
       for (var i=0;i<blocks.length;i++){
         var b = blocks[i];
-        if (b.start==null || b.kind==='free' || b.isDone || !b.movable) continue;
+        if (b.start==null || b.kind==='free' || b.isDone || b.pinned || !b.movable) continue;
         for (var j=0;j<blocks.length;j++){
           if (i===j) continue;
           var other = blocks[j];
@@ -1194,10 +1217,12 @@ function openEventModal(existing, prefillDate){
   document.getElementById('eventOverlay').classList.remove('hidden');
   if (isEdit) document.getElementById('efDelete').addEventListener('click', function(){
     STATE.events = STATE.events.filter(function(e){ return e.id !== existing.id; });
+    clearStaleManualOverrides(existing.date, null);
     saveEventsToStore();
+    saveOverridesToStore();
     closeEventModal();
     renderAll();
-    showToast('Event removed');
+    showToast('Event removed — replanned the rest of the day');
   });
 }
 
@@ -1221,11 +1246,13 @@ function submitEventForm(ev){
   } else {
     STATE.events.push(obj);
   }
+  clearStaleManualOverrides(obj.date, null);
   saveEventsToStore();
+  saveOverridesToStore();
   closeEventModal();
   STATE.expandedDates[obj.date] = true;
   renderAll();
-  showToast('Saved');
+  showToast('Saved — replanned the rest of the day');
 }
 
 /* ---- Block editor (recurring / periodic / habit instances) ---- */
@@ -1233,7 +1260,9 @@ function openBlockEditor(dateStr, block){
   var ov = getOverride(dateStr);
   var isDone = !!ov.done[block.sourceId];
   var isSkipped = ov.skipped.indexOf(block.sourceId) !== -1;
+  var isPinned = ov.pinned.indexOf(block.sourceId) !== -1;
   var hasOverride = !!ov.manualTimes[block.sourceId] || isDone;
+  var canPin = !!block.sourceId && block.source !== 'event' && block.source !== 'travel';
 
   document.getElementById('blockSheetTitle').textContent = block.title + ' — ' + DOW_SHORT[fromDateStr(dateStr).getDay()] + ' ' + MONTH_SHORT[fromDateStr(dateStr).getMonth()] + ' ' + fromDateStr(dateStr).getDate();
 
@@ -1249,11 +1278,13 @@ function openBlockEditor(dateStr, block){
     '<div class="sheet-actions">' +
       '<button type="button" class="btn small" id="bfMarkDone">'+(isDone?'Undo done':'Mark done ✅')+'</button>' +
       '<button type="button" class="btn small" id="bfSkip">'+(isSkipped?'Unskip':'Skip today')+'</button>' +
+      (canPin ? '<button type="button" class="btn small" id="bfPin">'+(isPinned?'Unpin 📌':'Pin 📌')+'</button>' : '') +
     '</div>' +
     '<div class="sheet-actions">' +
       (hasOverride ? '<button type="button" class="btn ghost small" id="bfReset">Reset to auto</button>' : '') +
       '<button type="submit" class="btn primary">Save time</button>' +
-    '</div>';
+    '</div>' +
+    (canPin ? '<p class="note" style="margin-top:8px;font-size:11.5px;color:var(--ink-faint);">Pinned blocks stay put — they\'re never auto-moved when you edit the rest of the day.</p>' : '');
 
   document.getElementById('blockOverlay').classList.remove('hidden');
 
@@ -1265,12 +1296,27 @@ function openBlockEditor(dateStr, block){
   document.getElementById('bfSkip').addEventListener('click', function(){
     if (isSkipped) ov.skipped = ov.skipped.filter(function(x){ return x!==block.sourceId; });
     else ov.skipped.push(block.sourceId);
-    saveOverridesToStore(); closeBlockEditor(); renderAll(); showToast(isSkipped?'Back on the schedule':'Skipped for today');
+    clearStaleManualOverrides(dateStr, block.sourceId);
+    saveOverridesToStore(); closeBlockEditor(); renderAll(); showToast(isSkipped?'Back on the schedule':'Skipped — replanned the rest of the day');
+  });
+  var pinBtn = document.getElementById('bfPin');
+  if (pinBtn) pinBtn.addEventListener('click', function(){
+    if (isPinned){
+      ov.pinned = ov.pinned.filter(function(x){ return x!==block.sourceId; });
+      saveOverridesToStore(); closeBlockEditor(); renderAll(); showToast('Unpinned — back in the mix');
+    } else {
+      if (!ov.manualTimes[block.sourceId] && block.start!=null){
+        ov.manualTimes[block.sourceId] = { start:block.start, duration:block.end-block.start };
+      }
+      ov.pinned.push(block.sourceId);
+      saveOverridesToStore(); closeBlockEditor(); renderAll(); showToast('Pinned — this stays put from now on');
+    }
   });
   var resetBtn = document.getElementById('bfReset');
   if (resetBtn) resetBtn.addEventListener('click', function(){
     delete ov.manualTimes[block.sourceId];
     delete ov.done[block.sourceId];
+    ov.pinned = ov.pinned.filter(function(x){ return x!==block.sourceId; });
     saveOverridesToStore(); closeBlockEditor(); renderAll(); showToast('Back to auto-planned');
   });
 
@@ -1279,8 +1325,11 @@ function openBlockEditor(dateStr, block){
     var start = clockToMin(document.getElementById('bfStart').value);
     var duration = Number(document.getElementById('bfDuration').value) || 30;
     if (isDone) ov.done[block.sourceId] = { start:start, duration:duration };
-    else ov.manualTimes[block.sourceId] = { start:start, duration:duration };
-    saveOverridesToStore(); closeBlockEditor(); renderAll(); showToast('Time updated');
+    else {
+      clearStaleManualOverrides(dateStr, block.sourceId);
+      ov.manualTimes[block.sourceId] = { start:start, duration:duration };
+    }
+    saveOverridesToStore(); closeBlockEditor(); renderAll(); showToast('Updated — replanned the rest of the day');
   };
 }
 
