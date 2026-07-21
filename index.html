@@ -761,19 +761,6 @@ function isPeriodicApplicable(rule, dateStr, dow){
 // earlier and later — rather than leaving old manual placements frozen in place.
 // The only things that stay put are: whatever was just edited (exceptSourceId),
 // anything marked "done", and (for today) anything whose time has already passed.
-function clearStaleManualOverrides(dateStr, exceptSourceId){
-  var ov = getOverride(dateStr);
-  var now = (dateStr === todayStr()) ? nowMinutes() : -1;
-  Object.keys(ov.manualTimes).forEach(function(id){
-    if (id === exceptSourceId) return;
-    if (ov.done[id]) return; // completed items never move
-    if (ov.pinned.indexOf(id) !== -1) return; // explicitly pinned — never auto-cleared
-    var m = ov.manualTimes[id];
-    if (now >= 0 && m.start + m.duration <= now) return; // already happened — leave it
-    delete ov.manualTimes[id];
-  });
-}
-
 function computeDaySchedule(dateStr, opts){
   opts = opts || {};
   var rules = STATE.rules;
@@ -810,7 +797,7 @@ function computeDaySchedule(dateStr, opts){
     if (ov.skipped.indexOf(rule.id) !== -1) return;
     if (rule.days.indexOf(dow) === -1) return;
 
-    var duration = rule.durationByDay ? (rule.durationByDay[dow] || rule.durationDefault || 60) : (rule.durationDefault || 60);
+    var defaultDuration = rule.durationByDay ? (rule.durationByDay[dow] || rule.durationDefault || 60) : (rule.durationDefault || 60);
 
     if (ov.done[rule.id]){
       var d = ov.done[rule.id];
@@ -819,24 +806,33 @@ function computeDaySchedule(dateStr, opts){
         canTakeCalls: rule.canTakeCalls, isDone:true });
       return;
     }
-    if (ov.manualTimes[rule.id]){
-      var m = ov.manualTimes[rule.id];
-      var isPinned = ov.pinned.indexOf(rule.id) !== -1;
-      addAnchor({ key:'rule_'+rule.id, kind:rule.kind, title:rule.name, start:m.start, end:m.start+m.duration,
-        location:rule.location, movable:true, source:'rule', sourceId:rule.id, tags: isPinned ? ['pinned'] : ['adjusted'],
-        canTakeCalls: rule.canTakeCalls, pinned:isPinned });
+
+    var manual = ov.manualTimes[rule.id];
+    var isPinned = manual && ov.pinned.indexOf(rule.id) !== -1;
+
+    if (isPinned){
+      addAnchor({ key:'rule_'+rule.id, kind:rule.kind, title:rule.name, start:manual.start, end:manual.start+manual.duration,
+        location:rule.location, movable:true, source:'rule', sourceId:rule.id, tags:['pinned'],
+        canTakeCalls: rule.canTakeCalls, pinned:true });
       return;
     }
 
-    var target = rule.targetStart;
-    if (rule.lateStart && ov.wakeLate) target = rule.lateStart;
-    var earliest = Math.max(rule.opensAt, SCAN_START, opts.replanAfter && dateStr===opts.replanDate ? opts.replanAfter : 0);
+    var duration = manual ? manual.duration : defaultDuration;
+    var defaultTarget = rule.targetStart;
+    if (rule.lateStart && ov.wakeLate) defaultTarget = rule.lateStart;
+    var target = manual ? manual.start : defaultTarget;
+    // manual preferences aren't clamped to opensAt — the person already chose a real time by hand
+    var earliest = manual
+      ? Math.max(SCAN_START, opts.replanAfter && dateStr===opts.replanDate ? opts.replanAfter : 0)
+      : Math.max(rule.opensAt, SCAN_START, opts.replanAfter && dateStr===opts.replanDate ? opts.replanAfter : 0);
 
     var gaps = computeGaps(anchors, SCAN_START, SCAN_END);
     var placement = placeInGaps({ earliest:earliest, target:Math.max(target,earliest), duration:duration }, gaps);
     if (!placement) placement = forcePlaceAfterAnchors({ earliest:earliest, duration:duration }, anchors);
 
     var tags = [];
+    if (manual) tags.push('adjusted');
+    if (manual && placement.start !== target) tags.push('moved to fit');
     if (placement.fit === 'forced') tags.push('tight day');
     addAnchor({ key:'rule_'+rule.id, kind:rule.kind, title:rule.name, start:placement.start, end:placement.end,
       location:rule.location, movable:true, source:'rule', sourceId:rule.id, tags:tags,
@@ -847,7 +843,7 @@ function computeDaySchedule(dateStr, opts){
   (rules.periodicActivities||[]).forEach(function(rule){
     if (ov.skipped.indexOf(rule.id) !== -1) return;
     if (!isPeriodicApplicable(rule, dateStr, dow)) return;
-    var duration = rule.durationDefault || 45;
+    var defaultDuration = rule.durationDefault || 45;
 
     if (ov.done[rule.id]){
       var d = ov.done[rule.id];
@@ -855,19 +851,29 @@ function computeDaySchedule(dateStr, opts){
         location:rule.location, movable:true, source:'periodic', sourceId:rule.id, tags:['done'], isDone:true });
       return;
     }
-    if (ov.manualTimes[rule.id]){
-      var m = ov.manualTimes[rule.id];
-      var isPinnedP = ov.pinned.indexOf(rule.id) !== -1;
-      addAnchor({ key:'per_'+rule.id, kind:rule.kind, title:rule.name, start:m.start, end:m.start+m.duration,
-        location:rule.location, movable:true, source:'periodic', sourceId:rule.id, tags: isPinnedP ? ['pinned'] : ['adjusted'], pinned:isPinnedP });
+
+    var manualP = ov.manualTimes[rule.id];
+    var isPinnedP = manualP && ov.pinned.indexOf(rule.id) !== -1;
+
+    if (isPinnedP){
+      addAnchor({ key:'per_'+rule.id, kind:rule.kind, title:rule.name, start:manualP.start, end:manualP.start+manualP.duration,
+        location:rule.location, movable:true, source:'periodic', sourceId:rule.id, tags:['pinned'], pinned:true });
       return;
     }
 
-    var earliest = Math.max(rule.opensAt, SCAN_START);
+    var durationP = manualP ? manualP.duration : defaultDuration;
+    var targetP = manualP ? manualP.start : rule.targetStart;
+    var earliestP = manualP
+      ? Math.max(SCAN_START, 0)
+      : Math.max(rule.opensAt, SCAN_START);
+
     var gaps = computeGaps(anchors, SCAN_START, SCAN_END);
-    var placement = placeInGaps({ earliest:earliest, target:Math.max(rule.targetStart,earliest), duration:duration }, gaps);
-    if (!placement) placement = forcePlaceAfterAnchors({ earliest:earliest, duration:duration }, anchors);
-    var tags = placement.fit==='forced' ? ['tight day'] : [];
+    var placement = placeInGaps({ earliest:earliestP, target:Math.max(targetP,earliestP), duration:durationP }, gaps);
+    if (!placement) placement = forcePlaceAfterAnchors({ earliest:earliestP, duration:durationP }, anchors);
+    var tags = [];
+    if (manualP) tags.push('adjusted');
+    if (manualP && placement.start !== targetP) tags.push('moved to fit');
+    if (placement.fit==='forced') tags.push('tight day');
     addAnchor({ key:'per_'+rule.id, kind:rule.kind, title:rule.name, start:placement.start, end:placement.end,
       location:rule.location, movable:true, source:'periodic', sourceId:rule.id, tags:tags });
   });
@@ -882,24 +888,33 @@ function computeDaySchedule(dateStr, opts){
         location:'Home', movable:true, source:'habit', sourceId:habit.id, tags:['done'], subtasks:habit.subtasks, isDone:true });
       return;
     }
-    if (ov.manualTimes[habit.id]){
-      var m = ov.manualTimes[habit.id];
-      var isPinnedH = ov.pinned.indexOf(habit.id) !== -1;
-      addAnchor({ key:'hab_'+habit.id, kind:habit.kind, title:habit.name, start:m.start, end:m.start+m.duration,
-        location:'Home', movable:true, source:'habit', sourceId:habit.id, tags: isPinnedH ? ['pinned'] : ['adjusted'], subtasks:habit.subtasks, pinned:isPinnedH });
+
+    var manualH = ov.manualTimes[habit.id];
+    var isPinnedH = manualH && ov.pinned.indexOf(habit.id) !== -1;
+
+    if (isPinnedH){
+      addAnchor({ key:'hab_'+habit.id, kind:habit.kind, title:habit.name, start:manualH.start, end:manualH.start+manualH.duration,
+        location:'Home', movable:true, source:'habit', sourceId:habit.id, tags:['pinned'], subtasks:habit.subtasks, pinned:true });
       return;
     }
 
-    var earliest = Math.max(prefs.dayStart, opts.replanAfter && dateStr===opts.replanDate ? opts.replanAfter : 0);
-    var target = clockToMin('18:00');
+    var durationH = manualH ? manualH.duration : habit.targetMin;
+    var targetH = manualH ? manualH.start : clockToMin('18:00');
+    var earliestH = manualH
+      ? Math.max(SCAN_START, opts.replanAfter && dateStr===opts.replanDate ? opts.replanAfter : 0)
+      : Math.max(prefs.dayStart, opts.replanAfter && dateStr===opts.replanDate ? opts.replanAfter : 0);
+
     var gaps = computeGaps(anchors, SCAN_START, SCAN_END);
-    var placement = placeInGaps({ earliest:earliest, target:target, duration:habit.targetMin, minDuration:20 }, gaps);
+    var placement = placeInGaps({ earliest:earliestH, target:targetH, duration:durationH, minDuration:20 }, gaps);
     if (!placement){
       blocks.push({ key:'hab_'+habit.id, kind:habit.kind, title:habit.name, start:null, end:null,
         location:'Home', movable:true, source:'habit', sourceId:habit.id, tags:['no room today'], subtasks:habit.subtasks, unscheduled:true });
       return;
     }
-    var tags = placement.fit==='shrunk' ? ['shortened to fit'] : [];
+    var tags = [];
+    if (manualH) tags.push('adjusted');
+    if (manualH && placement.start !== targetH) tags.push('moved to fit');
+    if (placement.fit==='shrunk') tags.push('shortened to fit');
     addAnchor({ key:'hab_'+habit.id, kind:habit.kind, title:habit.name, start:placement.start, end:placement.end,
       location:'Home', movable:true, source:'habit', sourceId:habit.id, tags:tags, subtasks:habit.subtasks });
   });
@@ -1217,9 +1232,7 @@ function openEventModal(existing, prefillDate){
   document.getElementById('eventOverlay').classList.remove('hidden');
   if (isEdit) document.getElementById('efDelete').addEventListener('click', function(){
     STATE.events = STATE.events.filter(function(e){ return e.id !== existing.id; });
-    clearStaleManualOverrides(existing.date, null);
     saveEventsToStore();
-    saveOverridesToStore();
     closeEventModal();
     renderAll();
     showToast('Event removed — replanned the rest of the day');
@@ -1246,9 +1259,7 @@ function submitEventForm(ev){
   } else {
     STATE.events.push(obj);
   }
-  clearStaleManualOverrides(obj.date, null);
   saveEventsToStore();
-  saveOverridesToStore();
   closeEventModal();
   STATE.expandedDates[obj.date] = true;
   renderAll();
@@ -1296,7 +1307,6 @@ function openBlockEditor(dateStr, block){
   document.getElementById('bfSkip').addEventListener('click', function(){
     if (isSkipped) ov.skipped = ov.skipped.filter(function(x){ return x!==block.sourceId; });
     else ov.skipped.push(block.sourceId);
-    clearStaleManualOverrides(dateStr, block.sourceId);
     saveOverridesToStore(); closeBlockEditor(); renderAll(); showToast(isSkipped?'Back on the schedule':'Skipped — replanned the rest of the day');
   });
   var pinBtn = document.getElementById('bfPin');
@@ -1326,7 +1336,6 @@ function openBlockEditor(dateStr, block){
     var duration = Number(document.getElementById('bfDuration').value) || 30;
     if (isDone) ov.done[block.sourceId] = { start:start, duration:duration };
     else {
-      clearStaleManualOverrides(dateStr, block.sourceId);
       ov.manualTimes[block.sourceId] = { start:start, duration:duration };
     }
     saveOverridesToStore(); closeBlockEditor(); renderAll(); showToast('Updated — replanned the rest of the day');
